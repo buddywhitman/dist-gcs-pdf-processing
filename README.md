@@ -9,14 +9,12 @@ This service processes PDFs from a Google Cloud Storage (GCS) bucket, performs O
 
 1. **Clone the repository and navigate to the project root:**
    ```sh
-   git clone <repo-url>
-   cd nest-starters
+   pip install dist-gcs-pdf-processing==0.1.0
    ```
 
 2. **Install dependencies:**
    ```sh
-   pip install -r requirements.txt
-   pip install -e .
+   dist-gcs-pdf-processing
    ```
 
 3. **Environment Variables:**
