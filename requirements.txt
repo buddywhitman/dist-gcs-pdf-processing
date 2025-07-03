@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+google-cloud-storage
+requests
+python-dotenv
+pypdf
+markdown2
+weasyprint
+python-docx
+redis
+prometheus_client
+pytest
+flake8 
