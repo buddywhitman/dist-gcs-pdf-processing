@@ -1,0 +1,1160 @@
+{
+  "name": "PDF to Clean PDF - page number aligned",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json['file-id'] }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "fc63cefd-aa68-41e4-a289-dd588c60c99e",
+      "name": "Download the Pdf",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -80,
+        1920
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PTDpPkqCRDgpWHsk",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "6cfeecdd-0e7d-4f3e-9f18-cf25805fdf87",
+      "name": "Loop for Doc",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        940,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "outputPrefix": "pdf_"
+      },
+      "id": "7993289e-d1a0-45bc-a7be-334b755e4b9a",
+      "name": "Compression1",
+      "type": "n8n-nodes-base.compression",
+      "typeVersion": 1.1,
+      "position": [
+        420,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Variables').first().json.stirlingPdfHost }}/api/v1/general/split-pages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "*/*"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "pageNumbers",
+              "value": "all"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "fileInput",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        1920
+      ],
+      "id": "797d025b-56b2-45fe-a765-f472141a93ac",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize empty array to store results\nconst results = [];\n\n// Get the single item that contains all binary properties\nconst item = $input.all()[0];\nconst binaryData = item.binary;\n\n// Process each binary property (each PDF page)\nconst sortedKeys = Object.keys(binaryData).sort((a, b) => {\n  // Extract page numbers from filenames\n  const getPageNumber = (filename) => {\n    const match = filename.match(/_(\\d+)\\.pdf$/);\n    return match ? parseInt(match[1], 10) : 0;\n  };\n  \n  const pageNumA = getPageNumber(binaryData[a].fileName);\n  const pageNumB = getPageNumber(binaryData[b].fileName);\n  return pageNumA - pageNumB;\n});\n\nsortedKeys.forEach((propertyName, index) => {\n  try {\n    const fileData = binaryData[propertyName];\n    if (!fileData) {\n      throw new Error(`No binary data found for ${propertyName}`);\n    }\n    \n    // Create a new item for each PDF page\n    results.push({\n      json: {\n        fileName: fileData.fileName,\n        fileExtension: fileData.fileExtension,\n        mimeType: fileData.mimeType,\n        fileSize: fileData.size,\n        pageNumber: index + 1, // Start page numbers from 1 instead of 0\n        data: fileData\n      },\n      binary: {\n        data: fileData\n      }\n    });\n  } catch (error) {\n    console.log(`Error processing ${propertyName}:`, error.message);\n  }\n});\n\n// Return processed results\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1920
+      ],
+      "id": "fdc27240-a225-4e5a-b69c-3de3e909fb95",
+      "name": "Parse and Sort Items"
+    },
+    {
+      "parameters": {
+        "operation": "binaryToPropery",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        1920
+      ],
+      "id": "4d1f56d8-229f-4cc5-9d29-8622006c9b7b",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Variables').first().json.stirlingPdfHost }}/api/v1/convert/markdown/pdf",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "*/*"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "fileInput",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2840,
+        1900
+      ],
+      "id": "895210f4-c3c1-4d98-bf7a-1451b8f528f4",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Get the original filename from the input\nconst originalFileName = $node['Loop for Doc'].json.fileName;\n// Replace .pdf with .md for the new filename\nconst mdFileName = originalFileName.replace('.pdf', '.md');\n\nconst markdownText = $json.candidates[0].content.parts[0].text;\nconst newItem = {\n  json: {\n    data: markdownText\n  },\n  binary: {\n    data: {\n      data: Buffer.from(markdownText).toString('base64'),\n      fileName: mdFileName,  // Using the modified filename here\n      mimeType: 'text/markdown'\n    }\n  }\n};\n\nreturn newItem;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        1900
+      ],
+      "id": "aa1b0957-499f-48ff-8fb1-269f79dc7ac3",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Variables').first().json.stirlingPdfHost }}/api/v1/general/pdf-to-single-page",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "*/*"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "fileInput",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3060,
+        1900
+      ],
+      "id": "eff2a6d6-3b36-4fc7-9f99-f92d16cfe89d",
+      "name": "HTTP Request9"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9ce37519-4165-495a-8f66-55f31f08ce5c",
+              "name": "Gemini API Key",
+              "value": "AIzaSyBSUuiuqhWc6jBLO4To3jq2cceNexUrn_Y",
+              "type": "string"
+            },
+            {
+              "id": "5910fa1b-e71d-4274-b9c6-8887ac9f8470",
+              "name": "stirlingPdfHost",
+              "value": "https://production-projects-stirling-pdf-compose-alternate.oktb9f.easypanel.host",
+              "type": "string"
+            },
+            {
+              "id": "c63ecf4d-61a9-4f25-b07d-f9452982f633",
+              "name": "file-id",
+              "value": "={{ $json.body['file-id'] }}",
+              "type": "string"
+            },
+            {
+              "id": "8aa875be-1d94-4fce-824b-f514403a33e9",
+              "name": "file-name",
+              "value": "={{ $json.body['file-name'] }}",
+              "type": "string"
+            },
+            {
+              "id": "943d34ad-c1a6-4c42-a600-7f9c0984b010",
+              "name": "new-pdf-folder-id",
+              "value": "={{ $json.body['new-pdf-folder-id']}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -320,
+        1920
+      ],
+      "id": "48d40035-4264-4475-836b-10cebe2c1c42",
+      "name": "Variables"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{$('Variables').last().json['Gemini API Key']}}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract text from a PDF page and convert it to Markdown format, preserving original formatting. Convert tables into Markdown tables with correct alignment and formatting. Translate Hindi to English with literal translation keeping only english equivalent. Create a well-formatted Markdown output that accurately represents the original PDF content. Must not include no note or comment and only include text extracted from PDF\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"application/pdf\",\n          \"data\": \"{{ $json.data }}\"\n\n        }\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.4,\n    \"topK\": 40,\n    \"topP\": 0.95,\n    \"maxOutputTokens\": 2048\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "81369efb-b94e-4263-b380-45d3f9535b8b",
+      "name": "Gemini Prompt for Doc1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        1920
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2c739376-9480-4d92-a6f6-3a5a9f707182",
+              "leftValue": "={{ $json.candidates[0].content.parts[0].text}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        1920
+      ],
+      "id": "18a668f7-4b69-40d9-8894-7f5e088369c4",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2180,
+        2180
+      ],
+      "id": "eaf72972-0599-41c5-9a99-b71b0d802951",
+      "name": "Loop Over Items2",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0497d63c-4d3f-4c26-bfd5-af12793f4606",
+              "name": "data",
+              "value": "={{ $('Extract from File').item.json.data }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1980,
+        2180
+      ],
+      "id": "161ad700-bc21-423f-bd13-de34fa5793e2",
+      "name": "Refetch Gemini Input"
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Variables').first().json['file-name']}}",
+        "driveId": {
+          "__rl": true,
+          "value": "0AMrOWqEU_JdsUk9PVA",
+          "mode": "list",
+          "cachedResultName": "DCPR AI",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/0AMrOWqEU_JdsUk9PVA"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Variables').first().json['new-pdf-folder-id'] }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2080,
+        1260
+      ],
+      "id": "b17d6de8-a9b4-4f0f-932e-a3ea80161a1d",
+      "name": "Google Drive3",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PTDpPkqCRDgpWHsk",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Variables').first().json.stirlingPdfHost }}/api/v1/general/merge-pdfs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "*/*"
+            },
+            {
+              "name": "Content-Type",
+              "value": "multipart/form-data"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "fileInput",
+              "inputDataFieldName": "fileInput1"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "fileInput",
+              "inputDataFieldName": "fileInput2"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1000,
+              "batchInterval": 3600000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        1620
+      ],
+      "id": "8a184312-776e-48f5-9eba-a4ed26a8356d",
+      "name": "HTTP Request17"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1240,
+        1600
+      ],
+      "id": "79a80a99-8f86-4595-997d-5470c57f2cc9",
+      "name": "Loop Over Items4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Code node\nconst items = $input.all();\nconst currentPDF = items[0].binary.data;\n\nif ($runIndex === 0) {\n    return [{\n        json: {\n            currentIndex: $runIndex\n        },\n        binary: {\n            fileInput1: currentPDF,\n            fileInput2: currentPDF\n        }\n    }];\n}\n\n// Subsequent runs - get previous merge result\nconst prevNode = $('HTTP Request17').last().binary.data\n\n// After first run, must have previous result\nif (!prevNode) {\n    throw new Error('Previous merge result not found');\n}\n\nreturn [{\n    json: {\n        currentIndex: $runIndex\n    },\n    binary: {\n             fileInput1: {\n            ...prevNode,\n            fileName: \"merged_pdf.pdf\"\n            },\n        fileInput2: currentPDF\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1620
+      ],
+      "id": "95037112-451c-498c-b5e9-4ec082a5a1b2",
+      "name": "Code8"
+    },
+    {
+      "parameters": {
+        "keep": "lastItems"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        1380
+      ],
+      "id": "4d84e875-bbc2-43f6-b815-a9733f44300c",
+      "name": "Limit2"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    \"candidates\": [\n      {\n        \"content\": {\n          \"parts\": [\n            {\n              \"text\": \"# This Page could not be processed by Gemini.\"\n            }\n          ],\n          \"role\": \"model\"\n        },\n        \"finishReason\": \"MAX_TOKENS\",\n        \"citationMetadata\": {\n          \"citationSources\": [\n            {\n              \"startIndex\": 92,\n              \"endIndex\": 224,\n              \"uri\": \"https://www.scribd.com/doc/46846515/Development-Control-Rules-Mumbai\"\n            }\n          ]\n        },\n        \"avgLogprobs\": -0.002605428220704198\n      }\n    ],\n    \"usageMetadata\": {\n      \"promptTokenCount\": 4878,\n      \"candidatesTokenCount\": 2048,\n      \"totalTokenCount\": 6926\n    },\n    \"modelVersion\": \"gemini-1.5-pro\"\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        2160
+      ],
+      "id": "e9e04e1f-75c2-4455-ae8c-e683e1061af1",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Variables').first().json.stirlingPdfHost }}/api/v1/general/remove-pages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "*/*"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "pageNumbers",
+              "value": "1"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "fileInput",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        1380
+      ],
+      "id": "a033a7d1-c4e8-4a78-880e-6ef8c44bf2e5",
+      "name": "HTTP Request18"
+    },
+    {
+      "parameters": {
+        "content": "## Set TRUE or FALSE as per need \n\n### OUTPUT_AS_PDF -> Create Output file as PDF\n\n### OUTPUT_AS_DOC -> Create Output file as DOC",
+        "height": 460
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -380,
+        1620
+      ],
+      "id": "a0d619e3-10de-4cd5-9864-4535b23c70f7",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.cloudconvert.com/v2/jobs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiZDRmMjhkNmIxYTRjOGNmZWE4ZTk4NzFhYzJjMjUzOTkyNjkyOThkMGZhZDE2MTU0MzYwMWJiY2M5YmY5YWJkMWQwZDE4YmY5YWM0YmJiNWUiLCJpYXQiOjE3MzY3OTI1NTguMDIzNTM5LCJuYmYiOjE3MzY3OTI1NTguMDIzNTQsImV4cCI6NDg5MjQ2NjE1OC4wMjA2MTEsInN1YiI6IjcwNzM3NDYwIiwic2NvcGVzIjpbInVzZXIucmVhZCIsInVzZXIud3JpdGUiLCJ0YXNrLnJlYWQiLCJ0YXNrLndyaXRlIiwid2ViaG9vay5yZWFkIiwid2ViaG9vay53cml0ZSIsInByZXNldC5yZWFkIiwicHJlc2V0LndyaXRlIl19.DolSJKDiKPwXEq6FnPm_7vV4HMhUgmx2AtDLUiISPj8nDFWBwt64HTCzZyuuLWV61SLz-QltC83b5Oo86ByFonlhUD0kXVwvLStO8KNyqD58OR7GmTpWju-u1-P2ON1gDf9bkOgCPAj-tKsydzc-p64DtMqgl2zqDGVlulYQCTYd6t1R9eP38375hT8wYptDIpEeExVC06Tpi-uwac3WEEDMfH1r7aJKTtO3s69IbDpqmtBHrExqOCYadj-4LSJk5KG_V3OIFeRTHN4Nkh_bC5BI23femCu4pY2w5ZPNhegyFOsNr2-7i87M9U7ANjBs1q5RqdcQESMFqCfgrK3IxeN9SoqoD0YjxzKXGiPvf3pxNAds_Bw5RQ_ePIDlPk4dlgpSzOVUrArcoFpmKEYv-xyHVHBP_GSxEMoWHHuCqOWt8Xk4wVkzPu9JLR_2IrTlfjHpBQkiR_G5oOmh3JjWfhOAA7TeDqeTAoe-wG_sSeyIAy5vREeAJqBXNrIZSQrikSRuWdK37_Cu0_g4X-tKOFpYBdWJCjlF5cbKf0IlGa3jdFgLtwP7RTG0mBLBsvSR4WdJoXvIzTUgaUbrjKv1sgpDjBMwC0eKeqA1ZnqVSsic-rOqXc_QaUtm4pxNXKzRQrJBPIIA51eAUK2xSERUGhDcEQ5lEeAgokQ-elI9hhI"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n    \"tasks\": {\n        \"import-file\": {\n            \"operation\": \"import/url\",\n            \"url\": \"{{ $json.webContentLink }}.pdf\"\n        },\n        \"convert-file\": {\n            \"operation\": \"convert\",\n            \"input\": \"import-file\",\n            \"input_format\": \"pdf\",\n            \"output_format\": \"docx\",\n            \"engine\": \"pdftron-pdf2word\"\n        },\n        \"export-file\": {\n            \"operation\": \"export/url\",\n            \"input\": \"convert-file\"\n        }\n    },\n    \"tag\": \"jobbuilder\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3060,
+        1500
+      ],
+      "id": "d779183d-d99b-47da-95d8-3c4a8df611ac",
+      "name": "HTTP Request10",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data.tasks[2].links.self }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiZDRmMjhkNmIxYTRjOGNmZWE4ZTk4NzFhYzJjMjUzOTkyNjkyOThkMGZhZDE2MTU0MzYwMWJiY2M5YmY5YWJkMWQwZDE4YmY5YWM0YmJiNWUiLCJpYXQiOjE3MzY3OTI1NTguMDIzNTM5LCJuYmYiOjE3MzY3OTI1NTguMDIzNTQsImV4cCI6NDg5MjQ2NjE1OC4wMjA2MTEsInN1YiI6IjcwNzM3NDYwIiwic2NvcGVzIjpbInVzZXIucmVhZCIsInVzZXIud3JpdGUiLCJ0YXNrLnJlYWQiLCJ0YXNrLndyaXRlIiwid2ViaG9vay5yZWFkIiwid2ViaG9vay53cml0ZSIsInByZXNldC5yZWFkIiwicHJlc2V0LndyaXRlIl19.DolSJKDiKPwXEq6FnPm_7vV4HMhUgmx2AtDLUiISPj8nDFWBwt64HTCzZyuuLWV61SLz-QltC83b5Oo86ByFonlhUD0kXVwvLStO8KNyqD58OR7GmTpWju-u1-P2ON1gDf9bkOgCPAj-tKsydzc-p64DtMqgl2zqDGVlulYQCTYd6t1R9eP38375hT8wYptDIpEeExVC06Tpi-uwac3WEEDMfH1r7aJKTtO3s69IbDpqmtBHrExqOCYadj-4LSJk5KG_V3OIFeRTHN4Nkh_bC5BI23femCu4pY2w5ZPNhegyFOsNr2-7i87M9U7ANjBs1q5RqdcQESMFqCfgrK3IxeN9SoqoD0YjxzKXGiPvf3pxNAds_Bw5RQ_ePIDlPk4dlgpSzOVUrArcoFpmKEYv-xyHVHBP_GSxEMoWHHuCqOWt8Xk4wVkzPu9JLR_2IrTlfjHpBQkiR_G5oOmh3JjWfhOAA7TeDqeTAoe-wG_sSeyIAy5vREeAJqBXNrIZSQrikSRuWdK37_Cu0_g4X-tKOFpYBdWJCjlF5cbKf0IlGa3jdFgLtwP7RTG0mBLBsvSR4WdJoXvIzTUgaUbrjKv1sgpDjBMwC0eKeqA1ZnqVSsic-rOqXc_QaUtm4pxNXKzRQrJBPIIA51eAUK2xSERUGhDcEQ5lEeAgokQ-elI9hhI"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3500,
+        1500
+      ],
+      "id": "4f105501-12ce-4f15-8c2c-d7d4d7021fb5",
+      "name": "HTTP Request12",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3300,
+        1500
+      ],
+      "id": "28cc1903-ab4a-48a2-ae14-c1684ad3176e",
+      "name": "Wait",
+      "webhookId": "6bca5428-8e25-4c7e-9022-8ec6d2d04d45",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data.result.files[0].url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3720,
+        1500
+      ],
+      "id": "933dc116-f902-4ce7-b912-3832cd3a57bb",
+      "name": "HTTP Request14",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Workflow Input Trigger').first().json['file-name'].split('.')[0] }}.doc",
+        "driveId": {
+          "__rl": true,
+          "value": "0AMrOWqEU_JdsUk9PVA",
+          "mode": "list",
+          "cachedResultName": "DCPR AI",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/0AMrOWqEU_JdsUk9PVA"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Variables').first().json.markdownDocFolder }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3960,
+        1640
+      ],
+      "id": "628088f7-bbf0-4fa9-87ed-b4190f25a4de",
+      "name": "Google Drive4",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PTDpPkqCRDgpWHsk",
+          "name": "Google Drive account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Workflow Input Trigger').item.json['file-name'].split('.')[0] }}.pdf",
+        "driveId": {
+          "__rl": true,
+          "value": "0AMrOWqEU_JdsUk9PVA",
+          "mode": "list",
+          "cachedResultName": "DCPR AI",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/0AMrOWqEU_JdsUk9PVA"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Variables').first().json.TmpFolder }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2820,
+        1500
+      ],
+      "id": "6bae46f4-cb90-4aac-a6af-7c17be6cef4e",
+      "name": "Upload to TMP Folder",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PTDpPkqCRDgpWHsk",
+          "name": "Google Drive account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "deleteFile",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Upload to TMP Folder').first().json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4180,
+        1640
+      ],
+      "id": "bb6809d0-75c4-44f5-af7a-c133b1c0882a",
+      "name": "Delete from TMP Folder",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PTDpPkqCRDgpWHsk",
+          "name": "Google Drive account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Workflow Input Trigger').first().json['file-name'].split('.')[0] }}.doc",
+        "driveId": {
+          "__rl": true,
+          "value": "0AMrOWqEU_JdsUk9PVA",
+          "mode": "list",
+          "cachedResultName": "DCPR AI",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/0AMrOWqEU_JdsUk9PVA"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Variables').first().json.translatedMarkdownFolder }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3960,
+        1300
+      ],
+      "id": "6ba8f3ee-6250-46d2-b119-4e6f87d151c0",
+      "name": "Google Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PTDpPkqCRDgpWHsk",
+          "name": "Google Drive account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "# Information\n\n## For new agent, Duplicate this flow and modify variable node to point to respective folders for paginated PDF, Paginated Doc and Clean Doc to Vector Store folder",
+        "height": 400,
+        "width": 500
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -440,
+        2320
+      ],
+      "id": "01369a5c-564a-4490-a1ea-2149acca9c91",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "path": "d5df57f2-04c7-4a05-a5ab-f49bbe98e261",
+        "responseMode": "lastNode",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "c11b121c-e37b-434f-9836-d49b8c0b1202",
+      "name": "Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -580,
+        1920
+      ],
+      "webhookId": "d5df57f2-04c7-4a05-a5ab-f49bbe98e261"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Download the Pdf": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop for Doc": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compression1": {
+      "main": [
+        [
+          {
+            "node": "Parse and Sort Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Compression1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse and Sort Items": {
+      "main": [
+        [
+          {
+            "node": "Loop for Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Gemini Prompt for Doc1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request9": {
+      "main": [
+        [
+          {
+            "node": "Loop for Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Variables": {
+      "main": [
+        [
+          {
+            "node": "Download the Pdf",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Prompt for Doc1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refetch Gemini Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items2": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Prompt for Doc1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refetch Gemini Input": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request17": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items4": {
+      "main": [
+        [
+          {
+            "node": "Limit2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code8": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request17",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request18",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request18": {
+      "main": [
+        [
+          {
+            "node": "Google Drive3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request10": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request12": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request14",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request12",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request14": {
+      "main": [
+        [
+          {
+            "node": "Google Drive4",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive4": {
+      "main": [
+        [
+          {
+            "node": "Delete from TMP Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to TMP Folder": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 3600,
+    "errorWorkflow": "yDud3RJdFcpZPq4q"
+  },
+  "versionId": "28e1ddf3-c9c1-4820-8e6f-ee2a3e3e906e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "37a69e5adf679dea77be8c8eaf4345737a52d305063421168f55793774e27bc5"
+  },
+  "id": "XydPT45N4TMl9CuI",
+  "tags": [
+    {
+      "createdAt": "2025-01-19T09:30:23.859Z",
+      "updatedAt": "2025-01-19T09:30:23.859Z",
+      "id": "l9xSjJ8SEEY0ICWz",
+      "name": "DCPR live"
+    }
+  ]
+}

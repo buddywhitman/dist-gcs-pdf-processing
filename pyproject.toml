@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dist-gcs-pdf-processing"
+version = "0.1.0"
+description = "Distributed, scalable GCS PDF processing pipeline with Gemini OCR, Redis, and API endpoints."
+authors = [
+    { name = "Pulkit Kumar", email = "your@email.com" }
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "google-cloud-storage",
+    "requests",
+    "python-dotenv",
+    "pypdf",
+    "markdown2",
+    "weasyprint",
+    "python-docx",
+    "redis",
+    "prometheus_client",
+]
+
+[project.urls]
+Homepage = "https://github.com/youruser/dist-gcs-pdf-processing"
+Source = "https://github.com/youruser/dist-gcs-pdf-processing"
+Tracker = "https://github.com/youruser/dist-gcs-pdf-processing/issues"
+
+[project.scripts]
+dist-gcs-worker = "dist_gcs_pdf_processing.worker:main"
+dist-gcs-api = "dist_gcs_pdf_processing.main:main"
+dist_gcs_pdf_processing = "dist_gcs_pdf_processing:main" 
