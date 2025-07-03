@@ -84,4 +84,4 @@ Thumbs.db
 *.log
 
 # Ignore local config
-*.local 
+*.local .pypirc
