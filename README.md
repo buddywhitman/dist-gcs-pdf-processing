@@ -7,12 +7,12 @@ This service processes PDFs from a Google Cloud Storage (GCS) bucket, performs O
 
 ## Setup & Environment
 
-1. **Clone the repository and navigate to the project root:**
+1. **Install using pip**
    ```sh
    pip install dist-gcs-pdf-processing==0.1.0
    ```
 
-2. **Install dependencies:**
+2. **Run**
    ```sh
    dist-gcs-pdf-processing
    ```
