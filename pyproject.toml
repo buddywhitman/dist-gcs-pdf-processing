@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dist-gcs-pdf-processing"
-version = "0.1.0"
+version = "1.0.0"
 description = "Distributed, scalable GCS PDF processing pipeline with Gemini OCR, Redis, and API endpoints."
 authors = [
     { name = "Pulkit Kumar", email = "your@email.com" }
@@ -40,6 +40,7 @@ Source = "https://github.com/youruser/dist-gcs-pdf-processing"
 Tracker = "https://github.com/youruser/dist-gcs-pdf-processing/issues"
 
 [project.scripts]
-dist-gcs-worker = "dist_gcs_pdf_processing.worker:main"
+dist-gcs-worker = "dist_gcs_pdf_processing.worker:start_worker"
 dist-gcs-api = "dist_gcs_pdf_processing.main:main"
-dist_gcs_pdf_processing = "dist_gcs_pdf_processing:main" 
+dist_gcs_pdf_processing = "dist_gcs_pdf_processing:main"
+# Removed or commented out invalid entry points that do not have a main() function. 
