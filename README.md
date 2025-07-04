@@ -1,20 +1,22 @@
-# DCPR PDF Processing Pipeline
+# GCS PDF Processing Pipeline
 
 ## Overview
-This service processes PDFs from a Google Cloud Storage (GCS) bucket, performs OCR using the Gemini API, and uploads clean, text-based PDFs to a destination GCS folder. It features robust error handling, logging, monitoring, and is designed for scalable, production use.
+This service processes PDFs from a Google Cloud Storage (GCS) bucket, performs OCR using the Gemini API, and uploads clean, text-based PDFs to a destination GCS folder. It features robust error handling, logging, monitoring, and is designed for scalable, production use. Translates multilingual documents to english by default, and processes tables into relevant markdown syntax.
 
 ---
 
 ## Setup & Environment
 
-1. **Install using pip**
+1. **Clone the repository and navigate to the project root:**
    ```sh
-   pip install dist-gcs-pdf-processing==0.1.0
+   git clone <repo-url>
+   cd nest-starters
    ```
 
-2. **Run**
+2. **Install dependencies and the package:**
    ```sh
-   dist-gcs-pdf-processing
+   pip install -r requirements.txt
+   pip install .
    ```
 
 3. **Environment Variables:**
@@ -40,21 +42,31 @@ This service processes PDFs from a Google Cloud Storage (GCS) bucket, performs O
 
 ---
 
-## Running the Worker & API
+## Running as a pip-installed Package
 
-You can run the background worker or the FastAPI API server:
+After installing the package with `pip install .`, you can use the following console scripts from anywhere:
 
-### Run the Worker (background processing only)
+### Run the Worker (background processing)
 ```sh
-python src/worker.py
+dist-gcs-worker
 ```
+- This will start the background worker that processes files from GCS.
 
-### Run the FastAPI API (with all endpoints)
+### Run the FastAPI API Server
 ```sh
-uvicorn src.main:app --reload
+dist_gcs_pdf_processing
 ```
-- The API exposes health, status, logs, metrics, config, and file processing endpoints.
-- The worker will start automatically in the background when the API starts.
+- This will start the FastAPI server (with the worker running in the background).
+- You can override the port (default 8000):
+  ```sh
+  dist_gcs_pdf_processing 8080
+  ```
+
+### Run the API app directly (ASGI app, for advanced users)
+```sh
+uvicorn dist_gcs_pdf_processing.main:app --reload
+```
+- This runs the FastAPI app directly (no worker thread). The ASGI app is always `app` in `main.py`.
 
 ---
 
@@ -147,13 +159,14 @@ project-root/
 1. **Install dependencies:**
    ```sh
    pip install -r requirements.txt
-   pip install -e .
+   pip install .
    ```
 
 2. **Run the worker:**
    ```sh
-   python -m src.worker
-   # or, if you have an entrypoint script, use that
+   dist-gcs-worker
+   # or, for the API server:
+   dist_gcs_pdf_processing
    ```
 
 3. **Run tests:**
@@ -172,12 +185,12 @@ project-root/
 
 2. **Run the container (worker only):**
    ```sh
-   docker run --rm -it -v $PWD/logs:/app/logs nest-starters python src/worker.py
+   docker run --rm -it -v $PWD/logs:/app/logs nest-starters dist-gcs-worker
    ```
 
 3. **Run the container (API server):**
    ```sh
-   docker run --rm -it -v $PWD/logs:/app/logs -p 8000:8000 nest-starters uvicorn src.main:app --host 0.0.0.0 --port 8000
+   docker run --rm -it -v $PWD/logs:/app/logs -p 8000:8000 nest-starters dist_gcs_pdf_processing
    ```
 
 - The Dockerfile can be overridden to run either the worker or the API server.
@@ -194,9 +207,8 @@ project-root/
   - name: Install deps
     run: |
       pip install -r requirements.txt
-      pip install -e .
+      pip install .
   - name: Run tests
-    run: pytest --import-mode=importlib tests/
   ```
 
 ## Secrets and Environment Variables
