@@ -4,7 +4,7 @@ import pytest
 from dist_gcs_pdf_processing.unified_worker import (
     split_pdf_to_pages,
     get_pdf_page_count,
-    process_file,
+    process_file_with_resume,
     MAX_CONCURRENT_FILES,
     MAX_RETRIES,
     GEMINI_GLOBAL_CONCURRENCY
@@ -63,12 +63,12 @@ def sample_real_pdf():
     # Provide the real sample PDF path
     return SAMPLE_PDF
 
-@patch("src.worker.log_supabase_error")
-@patch("src.worker.log_dead_letter")
-@patch("src.worker.log_json")
-@patch("src.worker.upload_to_gcs")
-@patch("src.worker.download_from_gcs")
-@patch("src.worker.gemini_ocr_page")
+@patch("dist_gcs_pdf_processing.unified_worker.log_supabase_error")
+@patch("dist_gcs_pdf_processing.unified_worker.log_dead_letter")
+@patch("dist_gcs_pdf_processing.unified_worker.log_json")
+@patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs")
+@patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs")
+@patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page")
 def test_worker_processes_pdf(
     mock_gemini_ocr,
     mock_download,
@@ -89,7 +89,7 @@ def test_worker_processes_pdf(
     # Patch upload_to_gcs to just record call
     mock_upload.return_value = True
     # Run the worker on the sample file
-    process_file(os.path.basename(sample_real_pdf))
+    process_file_with_resume(os.path.basename(sample_real_pdf), None)
     # Check that download, upload, and OCR were called
     assert mock_download.called
     assert mock_gemini_ocr.called
@@ -100,7 +100,7 @@ def test_worker_processes_pdf(
     mock_log_dead.assert_not_called()
     mock_log_supabase.assert_not_called()
 
-@patch("src.gcs_utils.file_exists_in_dest", return_value=True)
+@patch("dist_gcs_pdf_processing.gcs_utils.file_exists_in_dest", return_value=True)
 def test_worker_skips_if_in_dest(mock_exists):
     # list_new_files should skip files that exist in dest
     with patch("google.cloud.storage.Client") as mock_client:
@@ -112,12 +112,12 @@ def test_worker_skips_if_in_dest(mock_exists):
         files = list_new_files()
         assert files == []
 
-@patch("src.worker.log_supabase_error")
-@patch("src.worker.log_dead_letter")
-@patch("src.worker.log_json")
-@patch("src.worker.upload_to_gcs")
-@patch("src.worker.download_from_gcs")
-@patch("src.worker.gemini_ocr_page")
+@patch("dist_gcs_pdf_processing.unified_worker.log_supabase_error")
+@patch("dist_gcs_pdf_processing.unified_worker.log_dead_letter")
+@patch("dist_gcs_pdf_processing.unified_worker.log_json")
+@patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs")
+@patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs")
+@patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page")
 def test_worker_error_handling(
     mock_gemini_ocr,
     mock_download,
@@ -138,7 +138,7 @@ def test_worker_error_handling(
     # Patch upload_to_gcs to just record call
     mock_upload.return_value = True
     # Run the worker on the sample file (should retry and then fail)
-    process_file(os.path.basename(sample_real_pdf))
+    process_file_with_resume(os.path.basename(sample_real_pdf), None)
     # Should log dead letter and supabase error
     assert mock_log_dead.called
     assert mock_log_supabase.called
@@ -164,9 +164,9 @@ def test_per_page_retry_logic():
             call_count['count'] += 1
             raise Exception("Temporary Gemini error!")
         return "# Success after retry"
-    with patch("src.worker.gemini_ocr_page", side_effect=flaky_ocr):
-        with patch("src.worker.download_from_gcs") as mock_download, \
-             patch("src.worker.upload_to_gcs") as mock_upload:
+    with patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page", side_effect=flaky_ocr):
+        with patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs") as mock_download, \
+             patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs") as mock_upload:
             def fake_download(file_name, dest_dir, trace_id=None):
                 dest_path = (
                     os.path.join(dest_dir, os.path.basename(SAMPLE_PDF)))
@@ -174,7 +174,7 @@ def test_per_page_retry_logic():
                 return dest_path
             mock_download.side_effect = fake_download
             mock_upload.return_value = True
-            process_file(os.path.basename(SAMPLE_PDF))
+            process_file_with_resume(os.path.basename(SAMPLE_PDF), None)
     assert call_count['count'] == 2
 
 def test_file_level_concurrency():
@@ -197,9 +197,9 @@ def test_file_level_concurrency():
         time.sleep(0.5)
         with lock:
             active -= 1
-    # Patch process_file in the correct namespace
-    import src.worker as worker_mod
-    with patch.object(worker_mod, "process_file", side_effect=slow_process_file):
+    # Patch process_file_with_resume in the correct namespace
+    import dist_gcs_pdf_processing.unified_worker as worker_mod
+    with patch.object(worker_mod, "process_file_with_resume", side_effect=slow_process_file):
         # Patch list_new_files to yield the next unprocessed files as the worker requests them
         def list_next_files():
             # Always return up to MAX_CONCURRENT_FILES unprocessed files
@@ -236,7 +236,7 @@ def test_file_level_concurrency():
 
 def test_global_gemini_throttling():
     # Patch the global semaphore to 1 to force serial execution
-    from src.worker import gemini_global_semaphore
+    from dist_gcs_pdf_processing.unified_worker import gemini_global_semaphore
     orig_value = gemini_global_semaphore._value
     gemini_global_semaphore._value = 1
     call_order = []
@@ -244,13 +244,13 @@ def test_global_gemini_throttling():
         call_order.append(time.time())
         time.sleep(0.2)
         return "# OCR"
-    with patch("src.worker.gemini_ocr_page", side_effect=slow_ocr):
-        with patch("src.worker.download_from_gcs") as mock_download, \
-             patch("src.worker.upload_to_gcs") as mock_upload:
+    with patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page", side_effect=slow_ocr):
+        with patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs") as mock_download, \
+             patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs") as mock_upload:
             mock_download.side_effect = (
                 lambda file_name, dest_dir, trace_id=None: __file__)
             mock_upload.return_value = True
-            process_file("dummy.pd")
+            process_file_with_resume("dummy.pdf", None)
     # Calls should be spaced out, not concurrent
     diffs = [call_order[i+1] - call_order[i] for i in range(len(call_order)-1)]
     assert all(d > 0.15 for d in diffs)
@@ -264,10 +264,10 @@ def test_trace_id_in_logs():
         def error(self, msg): logs.append(msg)
     def fake_print(*args, **kwargs):
         prints.append(" ".join(str(a) for a in args))
-    with patch("src.worker.logger", new=DummyLogger()):
-        with patch("src.worker.gemini_ocr_page", return_value="# OCR"):
-            with patch("src.worker.download_from_gcs") as mock_download, \
-                 patch("src.worker.upload_to_gcs") as mock_upload, \
+    with patch("dist_gcs_pdf_processing.unified_worker.logger", new=DummyLogger()):
+        with patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page", return_value="# OCR"):
+            with patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs") as mock_download, \
+                 patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs") as mock_upload, \
                  patch("builtins.print", side_effect=fake_print):
                 def fake_download(file_name, dest_dir, trace_id=None):
                     dest_path = (
@@ -277,6 +277,6 @@ def test_trace_id_in_logs():
                     return dest_path
                 mock_download.side_effect = fake_download
                 mock_upload.return_value = True
-                process_file(os.path.basename(SAMPLE_PDF))
+                process_file_with_resume(os.path.basename(SAMPLE_PDF), None)
     assert any("[START][" in log for log in logs + prints)
     assert any("Processing file:" in log for log in logs + prints)

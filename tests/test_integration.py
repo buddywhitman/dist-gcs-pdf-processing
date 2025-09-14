@@ -3,7 +3,7 @@ import shutil
 from unittest.mock import patch
 
 from dist_gcs_pdf_processing.unified_worker import (
-    process_file,
+    process_file_with_resume,
     split_pdf_to_pages,
     markdown_to_pdf,
     is_valid_pdf,
@@ -42,7 +42,7 @@ def test_full_pipeline(
     mock_upload.return_value = True
     
     # Process the file
-    result = process_file("test.pdf", "test_trace")
+    result = process_file_with_resume("test.pdf", "test_trace")
     
     # Verify the pipeline was called
     mock_download.assert_called_once()
