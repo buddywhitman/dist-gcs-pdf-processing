@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pdf-worker-config
+  namespace: pdf-processing
+data:
+  POLL_INTERVAL: "30"
+  MAX_CONCURRENT_FILES: "3"
+  MAX_CONCURRENT_WORKERS: "8"
+  GEMINI_GLOBAL_CONCURRENCY: "10"
+  MAX_RETRIES: "3"
+  MAX_QUEUE: "100"
+  STORAGE_BACKEND: "gcs"
+  REDIS_URL: "redis://redis-service:6379/0"
+  SUPABASE_ERROR_LOG_TABLE: "Activity_Error_Log"

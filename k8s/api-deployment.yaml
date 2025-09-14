@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdf-api
+  namespace: pdf-processing
+  labels:
+    app: pdf-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pdf-api
+  template:
+    metadata:
+      labels:
+        app: pdf-api
+    spec:
+      containers:
+      - name: pdf-api
+        image: pdf-worker:latest
+        command: ["python", "-m", "dist_gcs_pdf_processing.main"]
+        ports:
+        - containerPort: 8000
+        env:
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: REDIS_URL
+        envFrom:
+        - secretRef:
+            name: pdf-worker-secrets
+        volumeMounts:
+        - name: secrets
+          mountPath: /app/secrets
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: secrets
+        secret:
+          secretName: pdf-worker-secrets
+      - name: logs
+        emptyDir: {}
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pdf-api-service
+  namespace: pdf-processing
+  labels:
+    app: pdf-api
+spec:
+  selector:
+    app: pdf-api
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: LoadBalancer

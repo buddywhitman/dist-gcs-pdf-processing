@@ -2,21 +2,7 @@ from dist_gcs_pdf_processing.env import load_env_and_credentials
 load_env_and_credentials()
 
 import os
-# Deep debug for .env
-dotenv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'secrets', '.env')
-print("[DEBUG] .env path:", dotenv_path)
-print("[DEBUG] .env exists:", os.path.exists(dotenv_path))
-print("[DEBUG] .env readable:", os.access(dotenv_path, os.R_OK))
-try:
-    with open(dotenv_path, 'r') as f:
-        print("[DEBUG] .env contents:\n", f.read())
-except Exception as e:
-    print(f"[DEBUG] Could not read .env: {e}")
 from dotenv import load_dotenv
-print("[DEBUG] CWD:", os.getcwd())
-load_dotenv(dotenv_path=dotenv_path, override=True)
-print("[DEBUG] .env loaded at entrypoint:", os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
-
 os.environ["G_MESSAGES_DEBUG"] = "none"
 os.environ["G_DEBUG"] = "fatal-warnings"
 os.environ["PYTHONWARNINGS"] = "ignore"
@@ -27,12 +13,19 @@ import json
 
 app = FastAPI()
 
+# Print GCS bucket and prefix values once at startup
+GCS_BUCKET = os.environ.get("GCS_BUCKET")
+GCS_SOURCE_PREFIX = os.environ.get("GCS_SOURCE_PREFIX")
+GCS_DEST_PREFIX = os.environ.get("GCS_DEST_PREFIX")
+print(f"[INFO] GCS_BUCKET: {GCS_BUCKET}")
+print(f"[INFO] GCS_SOURCE_PREFIX: {GCS_SOURCE_PREFIX}")
+print(f"[INFO] GCS_DEST_PREFIX: {GCS_DEST_PREFIX}")
+
 # Start the worker in a background thread on startup
 @app.on_event("startup")
 def startup_event():
     import logging
     logging.getLogger("dcpr.worker").info("FastAPI startup: worker thread will be started.")
-    print("[DEBUG] Startup event triggered\n")
     threading.Thread(target=start_worker, daemon=True).start()
 
 @app.get("/")
@@ -99,6 +92,9 @@ def config():
     config = {k: os.getenv(k) for k in keys}
     return config
 
-if __name__ == "__main__":
+def main():
     import uvicorn
-    uvicorn.run("dist_gcs_pdf_processing.main:app", host="0.0.0.0", port=8000, reload=True) 
+    uvicorn.run("dist_gcs_pdf_processing.main:app", host="0.0.0.0", port=8000, reload=True)
+
+if __name__ == "__main__":
+    main() 

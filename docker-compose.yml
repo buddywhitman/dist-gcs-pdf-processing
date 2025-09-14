@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: pdf-worker-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pdf-worker-gcs:
+    build: .
+    container_name: pdf-worker-gcs
+    environment:
+      - STORAGE_BACKEND=gcs
+      - REDIS_URL=redis://redis:6379/0
+      - WORKER_INSTANCE_ID=worker-gcs-1
+      - POLL_INTERVAL=30
+      - MAX_CONCURRENT_FILES=3
+      - MAX_CONCURRENT_WORKERS=8
+      - GEMINI_GLOBAL_CONCURRENCY=10
+      - MAX_RETRIES=3
+    volumes:
+      - ./secrets:/app/secrets:ro
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/app/logs/worker.log') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  pdf-worker-drive:
+    build: .
+    container_name: pdf-worker-drive
+    environment:
+      - STORAGE_BACKEND=drive
+      - REDIS_URL=redis://redis:6379/0
+      - WORKER_INSTANCE_ID=worker-drive-1
+      - POLL_INTERVAL=30
+      - MAX_CONCURRENT_FILES=2
+      - MAX_CONCURRENT_WORKERS=6
+      - GEMINI_GLOBAL_CONCURRENCY=8
+      - MAX_RETRIES=3
+    volumes:
+      - ./secrets:/app/secrets:ro
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/app/logs/worker.log') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  pdf-api:
+    build: .
+    container_name: pdf-api
+    command: ["python", "-m", "dist_gcs_pdf_processing.main"]
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./secrets:/app/secrets:ro
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  redis_data:

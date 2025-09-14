@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dist-gcs-pdf-processing"
-version = "1.0.0"
-description = "Distributed, scalable GCS PDF processing pipeline with Gemini OCR, Redis, and API endpoints."
+version = "2.0.0"
+description = "Unified PDF processing pipeline with resume capability, multi-storage backends (GCS/Drive), distributed locking, and production-ready deployment."
 authors = [
     { name = "Pulkit Kumar", email = "your@email.com" }
 ]
@@ -40,7 +40,8 @@ Source = "https://github.com/youruser/dist-gcs-pdf-processing"
 Tracker = "https://github.com/youruser/dist-gcs-pdf-processing/issues"
 
 [project.scripts]
-dist-gcs-worker = "dist_gcs_pdf_processing.worker:start_worker"
+dist-gcs-worker = "dist_gcs_pdf_processing.unified_worker:main"
 dist-gcs-api = "dist_gcs_pdf_processing.main:main"
 dist_gcs_pdf_processing = "dist_gcs_pdf_processing:main"
-# Removed or commented out invalid entry points that do not have a main() function. 
+dist-drive-worker = "dist_gcs_pdf_processing.unified_worker:main"
+dist-drive-api = "dist_gcs_pdf_processing.main:main" 

@@ -1,13 +1,15 @@
 fastapi
 uvicorn
 google-cloud-storage
+google-api-python-client
+google-auth
 requests
 python-dotenv
 pypdf
 markdown2
 weasyprint
+redis>=4.0.0
 python-docx
-redis
 prometheus_client
 pytest
 flake8 

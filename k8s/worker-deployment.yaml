@@ -1,0 +1,210 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdf-worker-gcs
+  namespace: pdf-processing
+  labels:
+    app: pdf-worker
+    storage: gcs
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pdf-worker
+      storage: gcs
+  template:
+    metadata:
+      labels:
+        app: pdf-worker
+        storage: gcs
+    spec:
+      containers:
+      - name: pdf-worker
+        image: pdf-worker:latest
+        command: ["python", "-m", "dist_gcs_pdf_processing.unified_worker"]
+        env:
+        - name: STORAGE_BACKEND
+          value: "gcs"
+        - name: WORKER_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: REDIS_URL
+        - name: POLL_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: POLL_INTERVAL
+        - name: MAX_CONCURRENT_FILES
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: MAX_CONCURRENT_FILES
+        - name: MAX_CONCURRENT_WORKERS
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: MAX_CONCURRENT_WORKERS
+        - name: GEMINI_GLOBAL_CONCURRENCY
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: GEMINI_GLOBAL_CONCURRENCY
+        - name: MAX_RETRIES
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: MAX_RETRIES
+        - name: SUPABASE_ERROR_LOG_TABLE
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: SUPABASE_ERROR_LOG_TABLE
+        envFrom:
+        - secretRef:
+            name: pdf-worker-secrets
+        volumeMounts:
+        - name: secrets
+          mountPath: /app/secrets
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import os; exit(0 if os.path.exists('/app/logs/worker.log') else 1)"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import os; exit(0 if os.path.exists('/app/logs/worker.log') else 1)"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: secrets
+        secret:
+          secretName: pdf-worker-secrets
+      - name: logs
+        emptyDir: {}
+      restartPolicy: Always
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdf-worker-drive
+  namespace: pdf-processing
+  labels:
+    app: pdf-worker
+    storage: drive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pdf-worker
+      storage: drive
+  template:
+    metadata:
+      labels:
+        app: pdf-worker
+        storage: drive
+    spec:
+      containers:
+      - name: pdf-worker
+        image: pdf-worker:latest
+        command: ["python", "-m", "dist_gcs_pdf_processing.unified_worker"]
+        env:
+        - name: STORAGE_BACKEND
+          value: "drive"
+        - name: WORKER_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: REDIS_URL
+        - name: POLL_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: POLL_INTERVAL
+        - name: MAX_CONCURRENT_FILES
+          value: "2"  # Lower for Drive API limits
+        - name: MAX_CONCURRENT_WORKERS
+          value: "6"  # Lower for Drive API limits
+        - name: GEMINI_GLOBAL_CONCURRENCY
+          value: "8"  # Lower for Drive API limits
+        - name: MAX_RETRIES
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: MAX_RETRIES
+        - name: SUPABASE_ERROR_LOG_TABLE
+          valueFrom:
+            configMapKeyRef:
+              name: pdf-worker-config
+              key: SUPABASE_ERROR_LOG_TABLE
+        envFrom:
+        - secretRef:
+            name: pdf-worker-secrets
+        volumeMounts:
+        - name: secrets
+          mountPath: /app/secrets
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import os; exit(0 if os.path.exists('/app/logs/worker.log') else 1)"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import os; exit(0 if os.path.exists('/app/logs/worker.log') else 1)"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: secrets
+        secret:
+          secretName: pdf-worker-secrets
+      - name: logs
+        emptyDir: {}
+      restartPolicy: Always

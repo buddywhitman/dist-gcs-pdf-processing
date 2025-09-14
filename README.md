@@ -1,242 +1,432 @@
-# DCPR PDF Processing Pipeline
+# PDF Processing Pipeline
 
-## Overview
-This service processes PDFs from a Google Cloud Storage (GCS) bucket, performs OCR using the Gemini API, and uploads clean, text-based PDFs to a destination GCS folder. It features robust error handling, logging, monitoring, and is designed for scalable, production use.
+A comprehensive, scalable PDF processing system with support for Google Cloud Storage (GCS) and Google Drive backends, featuring resume capability, distributed locking, and production-ready deployment options.
 
----
+## 🚀 Features
 
-## Setup & Environment
+- **🔄 Resume Capability**: Can resume from where it left off after crashes or interruptions
+- **⚡ Concurrent Processing**: File-level and page-level concurrency with intelligent backpressure
+- **🗄️ Multi-Storage Backends**: Support for both GCS and Google Drive via pluggable storage interface
+- **🔒 Distributed Locking**: Prevents duplicate processing across multiple instances
+- **📊 Comprehensive Logging**: JSON logs, dead letter queue, and Supabase integration
+- **✅ PDF Validation**: Validates PDF integrity before processing
+- **🚦 Rate Limiting**: Global Gemini API throttling and storage operation limits
+- **🛡️ Graceful Shutdown**: Proper cleanup on termination signals
+- **🏥 Health Monitoring**: Built-in health checks and monitoring endpoints
+- **📈 Auto-scaling**: Kubernetes HPA for dynamic scaling
+- **🐳 Container Ready**: Docker and Kubernetes deployment configurations
 
-1. **Clone the repository and navigate to the project root:**
-   ```sh
-   git clone <repo-url>
-   cd nest-starters
-   ```
+## 🏗️ Architecture
 
-2. **Install dependencies:**
-   ```sh
-   pip install -r requirements.txt
-   pip install -e .
-   ```
+The system consists of:
 
-3. **Environment Variables:**
-   - Place your `.env` file in the `secrets/` directory at the project root.
-   - Example `.env` variables:
-     ```env
-     GCS_BUCKET=your-bucket-name
-     GCS_SOURCE_PREFIX=source-folder
-     GCS_DEST_PREFIX=dest-folder
-     GEMINI_API_KEY=your-gemini-api-key
-     SUPABASE_URL=https://your-supabase-url
-     SUPABASE_API_KEY=your-supabase-api-key
-     MAX_RETRIES=3
-     GEMINI_GLOBAL_CONCURRENCY=10
-     MAX_CONCURRENT_FILES=3
-     PAGE_MAX_WORKERS=5
-     DOC_BATCH_SIZE=10
-     MAX_QUEUE=100
-     POLL_INTERVAL=30
-     G_MESSAGES_DEBUG=none
-     G_DEBUG=fatal-warnings
-     ```
+1. **Unified Worker**: Single worker supporting both GCS and Google Drive backends
+2. **Storage Interface**: Pluggable storage abstraction layer
+3. **OCR Engine**: Gemini API integration with intelligent rate limiting
+4. **Resume System**: Persistent progress tracking and resume capability
+5. **Distributed Locking**: Redis-based or file-based locking to prevent duplicates
+6. **Comprehensive Logging**: Multi-output logging system with structured JSON logs
+7. **Health Monitoring**: Built-in health checks and metrics endpoints
 
----
+## 🚀 Quick Start
 
-## Running the Worker & API
+### Prerequisites
 
-You can run the background worker or the FastAPI API server:
+- Python 3.11+
+- Google Cloud Storage bucket OR Google Drive folders
+- Gemini API key
+- Service account credentials (GCS) OR OAuth2 credentials (Drive)
+- Redis instance (for distributed locking)
 
-### Run the Worker (background processing only)
-```sh
-python src/worker.py
+### Installation
+
+```bash
+# Install from PyPI
+pip install dist-gcs-pdf-processing==2.0.0
+
+# Or install from source
+git clone <repository-url>
+cd gcs-pdf-processing
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
 ```
 
-### Run the FastAPI API (with all endpoints)
-```sh
-uvicorn src.main:app --reload
-```
-- The API exposes health, status, logs, metrics, config, and file processing endpoints.
-- The worker will start automatically in the background when the API starts.
+### Configuration
 
----
+Create a `.env` file with your settings:
 
-## Logging & Monitoring
-- **Logs:**
-  - Human-readable logs: `/logs/worker.log` (daily rotation)
-  - JSON logs: `/logs/json/YYYY-MM-DD.json`
-  - Dead letter logs: `/logs/dead_letter/dead_letter.log`
-- **Supabase:**
-  - Persistent errors are logged to the `Activity_Error_Log` table for monitoring.
-- **Suppressing GTK/GLib output:**
-  - Set in `.env` and at the top of `main.py` and `worker.py`.
+```env
+# API Keys
+GEMINI_API_KEY=your_gemini_api_key
 
----
+# Google Cloud Storage (for GCS backend)
+GOOGLE_APPLICATION_CREDENTIALS=secrets/gcs-service-account.json
+GCS_BUCKET_NAME=your-bucket-name
+GCS_SOURCE_PREFIX=source/
+GCS_DEST_PREFIX=processed/
 
-## Error Handling
-- Retries for transient errors (network, quota, etc.) with configurable limits.
-- Per-page retries: Each page is retried up to `MAX_RETRIES` times before being skipped.
-- Per-file retries: If a file fails (e.g., page count mismatch), the whole file is retried up to `MAX_RETRIES` times.
-- All persistent errors are logged to file, JSON, dead letter, and Supabase.
+# Google Drive (for Drive backend)
+GOOGLE_DRIVE_CREDENTIALS=secrets/drive-oauth2-credentials.json
+DRIVE_SOURCE_FOLDER_ID=your_source_folder_id
+DRIVE_DEST_FOLDER_ID=your_dest_folder_id
 
----
+# Redis (for distributed locking)
+REDIS_URL=redis://localhost:6379/0
 
-## Scalability, Concurrency & Throttling
-- **Rolling Concurrency Model:**
-  - The worker always keeps up to `MAX_CONCURRENT_FILES` files in progress.
-  - As soon as a file finishes, the next available file is picked up, until all are processed.
-  - This ensures maximum throughput and efficient resource usage.
-- **Per-Page Concurrency:**
-  - Each file's pages are OCRed in parallel, up to `PAGE_MAX_WORKERS` at a time.
-- **Global Gemini API Throttling:**
-  - All Gemini API requests (across all files and pages) are globally throttled by `GEMINI_GLOBAL_CONCURRENCY`.
-  - This ensures you never exceed your API quota or rate limits.
-- **Backpressure:**
-  - If too many files are queued (`MAX_QUEUE`), the worker will pause and log a warning.
-- **Horizontal scaling:**
-  - Run multiple stateless worker instances on different machines/VMs for even more throughput.
+# Supabase (optional, for persistent error logging)
+SUPABASE_URL=your_supabase_url
+SUPABASE_API_KEY=your_supabase_api_key
 
----
-
-## Temp/Log Cleanup
-- Files in logs, logs/json, logs/dead_letter, staging, and processed older than 200 days are deleted before the worker starts.
-
----
-
-## Tests
-- Unit and integration tests are located in `/tests`.
-- Tests cover:
-  - PDF splitting/merging
-  - Per-page and per-file retry logic
-  - File-level rolling concurrency (ensuring the concurrency window is always full)
-  - Global Gemini API throttling
-  - Trace ID propagation in logs
-- To run tests:
-  ```sh
-  pytest
-  ```
-
----
-
-## CI/CD
-- GitHub Actions workflow runs linting and tests on every push.
-- Example workflow file: `.github/workflows/ci.yml`.
-
----
-
-## Additional Notes
-- All print/log statements are also written to log files.
-- Trace/request IDs are used for end-to-end traceability.
-- For any persistent errors, check Supabase and the dead letter log for details.
-
-# Project Structure
-
-```
-project-root/
-├── src/                # All main code (import as src.module)
-├── tests/              # All tests (import as from src.module import ...)
-├── logs/               # Log output
-├── secrets/            # Secrets and credentials
-│   └── your-service-account.json
-│   └── .env
-├── requirements.txt    # Python dependencies
-├── setup.py            # For pip install -e .
-├── Dockerfile
-├── README.md
+# Worker Configuration
+POLL_INTERVAL=30
+MAX_CONCURRENT_FILES=3
+MAX_CONCURRENT_WORKERS=8
+GEMINI_GLOBAL_CONCURRENCY=10
+MAX_RETRIES=3
 ```
 
-## Local Development
+## 🎯 Usage
 
-1. **Install dependencies:**
-   ```sh
-   pip install -r requirements.txt
-   pip install -e .
-   ```
+### Local Development
 
-2. **Run the worker:**
-   ```sh
-   python -m src.worker
-   # or, if you have an entrypoint script, use that
-   ```
+```bash
+# Run GCS worker
+dist-gcs-worker
 
-3. **Run tests:**
-   ```sh
-   pytest --import-mode=importlib tests/
-   # or, if you have trouble with imports:
-   PYTHONPATH=. pytest tests/
-   ```
+# Run Drive worker  
+dist-drive-worker
 
-## Docker Usage
-
-1. **Build the Docker image:**
-   ```sh
-   docker build -t nest-starters .
-   ```
-
-2. **Run the container (worker only):**
-   ```sh
-   docker run --rm -it -v $PWD/logs:/app/logs nest-starters python src/worker.py
-   ```
-
-3. **Run the container (API server):**
-   ```sh
-   docker run --rm -it -v $PWD/logs:/app/logs -p 8000:8000 nest-starters uvicorn src.main:app --host 0.0.0.0 --port 8000
-   ```
-
-- The Dockerfile can be overridden to run either the worker or the API server.
-- The `.dockerignore` file ensures your build context is clean and fast.
-- You can override the CMD to run tests or other scripts as needed:
-   ```sh
-   docker run --rm -it nest-starters python -m pytest --import-mode=importlib tests/
-   ```
-
-## Continuous Integration (CI)
-
-- Use GitHub Actions or similar CI to run:
-  ```yaml
-  - name: Install deps
-    run: |
-      pip install -r requirements.txt
-      pip install -e .
-  - name: Run tests
-    run: pytest --import-mode=importlib tests/
-  ```
-
-## Secrets and Environment Variables
-
-- Place your GCP credentials JSON file in a `secrets/` directory at the project root (not tracked by git).
-- In your `.env` file (in the `secrets/` directory), set:
-  ```
-  GOOGLE_APPLICATION_CREDENTIALS=secrets/your-service-account.json
-  ```
-- The worker will automatically load `.env` from `secrets/`.
-- For Docker/CI, mount the `secrets/` directory and ensure the `.env` file and credentials are present.
-- **Never commit secrets or credentials to version control!**
-
----
-
-## Installation
-
-You can install the package from a GitHub Release:
-
-```sh
-pip install https://github.com/youruser/dist-gcs-pdf-processing/releases/download/v0.1.0/dist_gcs_pdf_processing-0.1.0-py3-none-any.whl
+# Run API server
+dist-gcs-api
 ```
 
----
+### Docker Deployment
 
-## CLI Usage
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
 
-After installation, you can run:
-
-```sh
-dist-gcs-worker  # Start the background worker
-
-dist-gcs-api     # Start the FastAPI API server (with all endpoints)
+# Scale workers
+docker-compose up -d --scale pdf-worker-gcs=3 --scale pdf-worker-drive=2
 ```
 
-Or, for advanced usage:
+### Kubernetes Deployment
 
-```sh
-python -m dist_gcs_pdf_processing.worker
-python -m dist_gcs_pdf_processing.main
+```bash
+# Deploy to Kubernetes
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/secrets.yaml
+kubectl apply -f k8s/redis-deployment.yaml
+kubectl apply -f k8s/worker-deployment.yaml
+kubectl apply -f k8s/api-deployment.yaml
+kubectl apply -f k8s/hpa.yaml
 ```
+
+## 📁 Project Structure
+
+```
+├── src/dist_gcs_pdf_processing/
+│   ├── unified_worker.py      # 🎯 Main unified worker
+│   ├── storage_interface.py   # 🗄️ Storage abstraction layer
+│   ├── gcs_utils.py          # ☁️ GCS operations
+│   ├── drive_utils_oauth2.py # 📁 Drive operations
+│   ├── ocr.py                # 🔍 OCR processing
+│   ├── config.py             # ⚙️ Configuration
+│   ├── env.py                # 🌍 Environment setup
+│   └── shared.py             # 🔧 Shared utilities
+├── k8s/                      # ☸️ Kubernetes manifests
+├── docker-compose.yml        # 🐳 Docker Compose config
+├── Dockerfile               # 🐳 Docker configuration
+└── tests/                   # 🧪 Test suite
+```
+
+## 🔧 Configuration Options
+
+| Variable | Description | Default | Notes |
+|----------|-------------|---------|-------|
+| `STORAGE_BACKEND` | Storage backend (gcs/drive) | gcs | Determines which storage to use |
+| `POLL_INTERVAL` | Polling interval in seconds | 30 | How often to check for new files |
+| `MAX_CONCURRENT_FILES` | Max concurrent files | 3 | Files processed simultaneously |
+| `MAX_CONCURRENT_WORKERS` | Max concurrent workers | 8 | Pages processed simultaneously |
+| `GEMINI_GLOBAL_CONCURRENCY` | Global Gemini API concurrency | 10 | Global API rate limiting |
+| `MAX_RETRIES` | Max retries per page | 3 | Retry failed pages |
+| `REDIS_URL` | Redis connection URL | None | For distributed locking |
+| `WORKER_INSTANCE_ID` | Unique worker instance ID | Auto-generated | For logging and locking |
+
+## 📊 Monitoring & Logging
+
+### Health Checks
+
+- **Worker Health**: Checks for log file existence
+- **API Health**: HTTP endpoint at `/health`
+- **Redis Health**: Redis ping command
+
+### Logging
+
+- **Structured Logs**: JSON format in `logs/json/`
+- **Dead Letter Queue**: Failed files in `logs/dead_letter/`
+- **Progress Tracking**: Resume state in `logs/progress/`
+- **Supabase Integration**: Persistent error logging
+
+### Metrics
+
+- **Prometheus Metrics**: Available at `/metrics` endpoint
+- **Resource Usage**: CPU, memory, network
+- **Processing Metrics**: Files processed, pages processed, errors
+
+## 🚀 Deployment Options
+
+### 1. Docker Compose (Recommended for Development)
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Scale workers
+docker-compose up -d --scale pdf-worker-gcs=3 --scale pdf-worker-drive=2
+
+# Stop services
+docker-compose down
+```
+
+### 2. Kubernetes (Recommended for Production)
+
+```bash
+# Deploy to Kubernetes
+kubectl apply -f k8s/
+
+# Check deployment status
+kubectl get pods -n pdf-processing
+
+# View logs
+kubectl logs -f deployment/pdf-worker-gcs -n pdf-processing
+
+# Scale manually
+kubectl scale deployment pdf-worker-gcs --replicas=5 -n pdf-processing
+```
+
+### 3. Individual Containers
+
+```bash
+# Run GCS worker
+docker run -d \
+  --name pdf-worker-gcs \
+  --env-file .env \
+  -v ./secrets:/app/secrets:ro \
+  -v ./logs:/app/logs \
+  pdf-worker:latest \
+  dist-gcs-worker
+
+# Run Drive worker
+docker run -d \
+  --name pdf-worker-drive \
+  --env-file .env \
+  -v ./secrets:/app/secrets:ro \
+  -v ./logs:/app/logs \
+  pdf-worker:latest \
+  dist-drive-worker
+
+# Run API server
+docker run -d \
+  --name pdf-api \
+  --env-file .env \
+  -p 8000:8000 \
+  -v ./secrets:/app/secrets:ro \
+  -v ./logs:/app/logs \
+  pdf-worker:latest \
+  dist-gcs-api
+```
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+1. **Redis Connection Failed**
+   ```bash
+   # Check Redis status
+   kubectl get pods -l app=redis -n pdf-processing
+   ```
+
+2. **Authentication Errors**
+   ```bash
+   # Check secrets
+   kubectl get secret pdf-worker-secrets -n pdf-processing -o yaml
+   ```
+
+3. **Duplicate Processing**
+   ```bash
+   # Check Redis locks
+   redis-cli keys "pdf_processing:*"
+   ```
+
+### Debug Commands
+
+```bash
+# Check worker status
+kubectl describe pod <pod-name> -n pdf-processing
+
+# View logs
+kubectl logs -f <pod-name> -n pdf-processing
+
+# Execute shell in pod
+kubectl exec -it <pod-name> -n pdf-processing -- /bin/bash
+```
+
+## 📈 Scaling Strategies
+
+### Horizontal Scaling
+
+1. **Kubernetes HPA**: Automatic scaling based on CPU/memory
+2. **Manual Scaling**: `kubectl scale deployment`
+3. **Docker Compose**: `docker-compose up --scale`
+
+### Vertical Scaling
+
+1. **Resource Limits**: Adjust CPU/memory limits
+2. **Concurrency**: Increase `MAX_CONCURRENT_FILES`
+3. **Workers**: Increase `MAX_CONCURRENT_WORKERS`
+
+## 🛡️ Security Considerations
+
+1. **Secrets Management**: Use Kubernetes secrets or external secret management
+2. **Network Policies**: Implement network segmentation
+3. **RBAC**: Configure proper role-based access control
+4. **Image Security**: Scan images for vulnerabilities
+5. **Resource Limits**: Prevent resource exhaustion attacks
+
+## 🔧 Setup Guides
+
+### Google Cloud Storage Setup
+
+1. **Create a GCS Bucket**:
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Navigate to Cloud Storage
+   - Create a new bucket
+   - Note the bucket name
+
+2. **Create Service Account**:
+   - Go to "IAM & Admin" → "Service Accounts"
+   - Click "Create Service Account"
+   - Provide name and description
+   - Grant "Storage Admin" role
+   - Create and download JSON key as `secrets/gcs-service-account.json`
+
+3. **Configure Environment**:
+   ```env
+   GOOGLE_APPLICATION_CREDENTIALS=secrets/gcs-service-account.json
+   GCS_BUCKET_NAME=your-bucket-name
+   GCS_SOURCE_PREFIX=source/
+   GCS_DEST_PREFIX=processed/
+   ```
+
+### Google Drive Setup
+
+1. **Create a Google Cloud Project**:
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select existing one
+   - Enable the Google Drive API
+
+2. **Create OAuth2 Credentials**:
+   - Go to "Credentials" in the Google Cloud Console
+   - Click "Create Credentials" → "OAuth 2.0 Client IDs"
+   - Choose "Desktop application"
+   - Download the JSON file as `secrets/drive-oauth2-credentials.json`
+
+3. **Set up OAuth2 Flow**:
+   ```bash
+   # Run the OAuth2 setup (one-time)
+   python -c "
+   from dist_gcs_pdf_processing.drive_utils_oauth2 import setup_oauth2_credentials
+   setup_oauth2_credentials()
+   "
+   ```
+
+4. **Create Drive Folders**:
+   - Create source and destination folders in Google Drive
+   - Copy folder IDs from URLs
+   - Configure environment:
+   ```env
+   GOOGLE_DRIVE_CREDENTIALS=secrets/drive-oauth2-credentials.json
+   DRIVE_SOURCE_FOLDER_ID=your_source_folder_id
+   DRIVE_DEST_FOLDER_ID=your_dest_folder_id
+   ```
+
+### Redis Setup
+
+#### Local Redis
+```bash
+# Install Redis
+# Ubuntu/Debian
+sudo apt-get install redis-server
+
+# macOS
+brew install redis
+
+# Start Redis
+redis-server
+```
+
+#### Docker Redis
+```bash
+docker run -d --name redis -p 6379:6379 redis:alpine
+```
+
+#### Kubernetes Redis
+```bash
+kubectl apply -f k8s/redis-deployment.yaml
+```
+
+## 📚 API Reference
+
+### Health Endpoints
+
+- `GET /` - Basic health check
+- `GET /health` - Detailed health status
+- `GET /status` - Worker status and metrics
+- `GET /metrics` - Prometheus metrics
+
+### Processing Endpoints
+
+- `POST /process-file` - Process a specific file
+- `POST /drive-event` - Process files from Drive webhook
+- `GET /logs` - Recent processing logs
+
+### Configuration Endpoints
+
+- `GET /config` - Current configuration
+- `POST /config` - Update configuration (restart required)
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run specific test file
+pytest tests/test_worker.py
+
+# Run with coverage
+pytest --cov=src/dist_gcs_pdf_processing tests/
+
+# Run integration tests
+pytest tests/test_integration.py -v
+```
+
+## 📄 License
+
+MIT License - see LICENSE file for details.
+
+## 🆘 Support
+
+- **Issues**: [GitHub Issues](https://github.com/buddywhitman/dist-gcs-pdf-processing/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/buddywhitman/dist-gcs-pdf-processing/discussions)
+- **Documentation**: [Wiki](https://github.com/buddywhitman/dist-gcs-pdf-processing/wiki)
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines and contribution instructions.

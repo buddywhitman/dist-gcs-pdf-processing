@@ -86,3 +86,51 @@ Thumbs.db
 # Ignore local config
 *.local 
 .pypirc
+
+# Sensitive files and credentials
+credentials.json
+token.pickle
+*.json
+!package.json
+!tsconfig.json
+!*.config.json
+!k8s/*.json
+
+# API keys and tokens
+*.key
+*.pem
+*.p12
+*.pfx
+.env.local
+.env.production
+.env.staging
+
+# Google credentials
+secrets/
+google-credentials.json
+service-account*.json
+drive-credentials.json
+gcs-service-account.json
+drive-service-account.json
+
+# OAuth tokens
+oauth2_credentials.json
+token.json
+refresh_token.json
+
+# Temporary processing files
+temp/
+tmp/
+staging/
+processed/
+cache/
+
+# Logs and runtime data
+logs/
+*.log
+*.log.*
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
