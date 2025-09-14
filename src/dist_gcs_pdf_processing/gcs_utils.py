@@ -45,9 +45,10 @@ def list_new_files(trace_id=None):
         blobs = list(bucket.list_blobs(prefix=GCS_SOURCE_PREFIX))
         dest_bucket = storage_client.bucket(GCS_BUCKET)
         dest_blobs = list(dest_bucket.list_blobs(prefix=GCS_DEST_PREFIX))
-        dest_files = (
-            set(blob.name for blob in dest_blobs if blob.name.lower().endsw
-            ith('.pd')))
+        dest_files = set(
+            blob.name for blob in dest_blobs 
+            if blob.name.lower().endswith('.pdf')
+        )
         new_files = []
         for blob in blobs:
             if blob.name.lower().endswith('.pdf'):

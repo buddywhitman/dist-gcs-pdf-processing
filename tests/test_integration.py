@@ -2,18 +2,20 @@ import os
 import tempfile
 import shutil
 from unittest.mock import patch
-from src.worker import *
+from dist_gcs_pdf_processing.unified_worker import *
 
-SAMPLE_PDF = (
-    os.path.join(os.path.dirname(__file__), "testdata", "2022-03-07 Survey 
-    Dept. fees 2022-23.pd"))
+SAMPLE_PDF = os.path.join(
+    os.path.dirname(__file__), 
+    "testdata", 
+    "2022-03-07 Survey Dept. fees 2022-23.pdf"
+)
 
-@patch("src.worker.upload_to_gcs")
-@patch("src.worker.download_from_gcs")
-@patch("src.worker.gemini_ocr_page")
-@patch("src.worker.log_supabase_error")
-@patch("src.worker.log_dead_letter")
-@patch("src.worker.log_json")
+@patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs")
+@patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs")
+@patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page")
+@patch("dist_gcs_pdf_processing.unified_worker.log_supabase_error")
+@patch("dist_gcs_pdf_processing.unified_worker.log_dead_letter")
+@patch("dist_gcs_pdf_processing.unified_worker.log_json")
 def test_full_pipeline(
     mock_log_json,
     mock_log_dead,

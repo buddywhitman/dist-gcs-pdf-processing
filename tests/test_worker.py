@@ -1,17 +1,18 @@
 import os
 import tempfile
 import pytest
-from src.worker import (
+from dist_gcs_pdf_processing.unified_worker import (
     split_pdf_to_pages,
     get_pdf_page_count,
     process_file,
     MAX_CONCURRENT_FILES,
     MAX_RETRIES,
-    GEMINI_GLOBAL_CONCURRENCY)
+    GEMINI_GLOBAL_CONCURRENCY
+)
 from pypdf import PdfWriter, PdfReader
 import shutil
 from unittest.mock import patch, MagicMock, call
-from src.gcs_utils import list_new_files
+from dist_gcs_pdf_processing.gcs_utils import list_new_files
 import threading
 import time
 import io
@@ -51,9 +52,11 @@ def test_merge_pdf_pages(sample_pdf):
             writer.write(f)
         assert get_pdf_page_count(merged_path) == 3
 
-SAMPLE_PDF = (
-    os.path.join(os.path.dirname(__file__), "testdata", "2022-03-07 Survey 
-    Dept. fees 2022-23.pd"))
+SAMPLE_PDF = os.path.join(
+    os.path.dirname(__file__), 
+    "testdata", 
+    "2022-03-07 Survey Dept. fees 2022-23.pdf"
+)
 
 @pytest.fixture
 def sample_real_pdf():

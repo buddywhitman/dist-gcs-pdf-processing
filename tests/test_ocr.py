@@ -1,10 +1,10 @@
 import os
 import base64
 from unittest.mock import patch, MagicMock
-from src.ocr import gemini_ocr_page
+from dist_gcs_pdf_processing.ocr import gemini_ocr_page
 import tempfile
 
-@patch("src.ocr.requests.post")
+@patch("dist_gcs_pdf_processing.ocr.requests.post")
 def test_gemini_ocr_page_success(mock_post):
     # Simulate Gemini API returning markdown
     mock_post.return_value.status_code = 200
@@ -23,7 +23,7 @@ def test_gemini_ocr_page_success(mock_post):
     finally:
         os.remove(path)
 
-@patch("src.ocr.requests.post")
+@patch("dist_gcs_pdf_processing.ocr.requests.post")
 def test_gemini_ocr_page_error(mock_post):
     # Simulate Gemini API error response
     mock_post.return_value.status_code = 400

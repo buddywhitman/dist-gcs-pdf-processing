@@ -2,7 +2,7 @@ import os
 import tempfile
 import json
 from unittest.mock import patch
-from src.worker import log_json, log_dead_letter, log_supabase_error
+from dist_gcs_pdf_processing.unified_worker import log_json, log_dead_letter, log_supabase_error
 
 def test_log_json():
     with tempfile.TemporaryDirectory() as tmpdir:
