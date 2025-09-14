@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dist-gcs-pdf-processing"
-version = "2.0.5"
+version = "2.0.6"
 description = "Unified PDF processing pipeline with resume capability, multi-storage backends (GCS/Drive), distributed locking, and production-ready deployment."
 authors = [
     { name = "Pulkit Kumar", email = "your@email.com" }
