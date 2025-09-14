@@ -428,9 +428,9 @@ def process_file_with_resume(file_name, storage_backend):
                         # Load cached result
                         safe_filename = (
                             file_name.replace('/', '_').replace('\\', '_'))
-                        cached_md_path = (
-                            os.path.join(PROGRESS_DIR, "{safe_filename}_pag
-                            e_{page_number:04d}.md"))
+                        cached_md_path = os.path.join(
+                            PROGRESS_DIR, f"{safe_filename}_page_{page_number:04d}.md"
+                        )
                         if os.path.exists(cached_md_path):
                             with open(cached_md_path, 'r', encoding='utf-8') as f:
                                 cached_markdown = f.read()
@@ -462,9 +462,9 @@ def process_file_with_resume(file_name, storage_backend):
                                 safe_filename = (
                                     file_name.replace('/', '_').replace('\\
                                     ', '_'))
-                                cached_md_path = (
-                                    os.path.join(PROGRESS_DIR, "{safe_filen
-                                    ame}_page_{page_number:04d}.md"))
+                                cached_md_path = os.path.join(
+                                    PROGRESS_DIR, f"{safe_filename}_page_{page_number:04d}.md"
+                                )
                                 with open(cached_md_path, 'w', encoding='utf-8') as f:
                                     f.write(markdown)
 
@@ -496,9 +496,9 @@ def process_file_with_resume(file_name, storage_backend):
                 # Convert markdown to PDF
                 single_pdf_paths = []
                 for page_number, markdown in results:
-                    pdf_path = (
-                        os.path.join(pdf_dir, "ocr_page_{page_number:04d}.p
-                        d"))
+                    pdf_path = os.path.join(
+                        pdf_dir, f"ocr_page_{page_number:04d}.pdf"
+                    )
                     try:
                         markdown_to_pdf(markdown, pdf_path, html_dir, page_number)
                         single_pdf_paths.append(pdf_path)
@@ -549,9 +549,9 @@ def process_file_with_resume(file_name, storage_backend):
                     safe_filename = (
                         file_name.replace('/', '_').replace('\\', '_'))
                     for page_number in range(1, len(page_files) + 1):
-                        cached_md_path = (
-                            os.path.join(PROGRESS_DIR, "{safe_filename}_pag
-                            e_{page_number:04d}.md"))
+                        cached_md_path = os.path.join(
+                            PROGRESS_DIR, f"{safe_filename}_page_{page_number:04d}.md"
+                        )
                         if os.path.exists(cached_md_path):
                             os.remove(cached_md_path)
 
@@ -702,14 +702,14 @@ def main():
     storage_backend = get_storage_backend(storage_type)
 
     print("=== Unified PDF Processing Worker ===")
-    print("Worker Instance: {WORKER_INSTANCE_ID}")
-    print("Storage Backend: {storage_type.upper()}")
-    print("Poll interval: {POLL_INTERVAL} seconds")
-    print("Max concurrent files: {MAX_CONCURRENT_FILES}")
-    print("Max concurrent workers: {PAGE_MAX_WORKERS}")
-    print("Gemini global concurrency: {GEMINI_GLOBAL_CONCURRENCY}")
+    print(f"Worker Instance: {WORKER_INSTANCE_ID}")
+    print(f"Storage Backend: {storage_type.upper()}")
+    print(f"Poll interval: {POLL_INTERVAL} seconds")
+    print(f"Max concurrent files: {MAX_CONCURRENT_FILES}")
+    print(f"Max concurrent workers: {PAGE_MAX_WORKERS}")
+    print(f"Gemini global concurrency: {GEMINI_GLOBAL_CONCURRENCY}")
     print("Resume capability: ENABLED")
-    print("Distributed locking: {'Redis' if redis_client else 'File-based'}")
+    print(f"Distributed locking: {'Redis' if redis_client else 'File-based'}")
     print()
 
     cleanup_old_files()
