@@ -38,10 +38,32 @@ jobs:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
 
-      - name: Upload release assets to GitHub
+      - name: Create GitHub Release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## 🚀 What's New in ${{ github.ref_name }}
+            
+            - Unified worker with resume capability
+            - Multi-storage backends (GCS + Google Drive)
+            - Distributed locking (Redis + file fallback)
+            - Production-ready deployment (Docker + Kubernetes)
+            - Comprehensive documentation and contributing guide
+            - Windows compatibility fixes
+            
+            ## 📦 Installation
+            ```bash
+            pip install dist-gcs-pdf-processing==${{ github.ref_name }}
+            ```
+            
+            ## 🔗 Links
+            - PyPI: https://pypi.org/project/dist-gcs-pdf-processing/${{ github.ref_name }}/
+            - Documentation: See README.md
           files: |
             dist/*.whl
-            dist/*.tar.gz 
+            dist/*.tar.gz
+          draft: false
+          prerelease: false 
