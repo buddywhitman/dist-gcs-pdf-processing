@@ -4,27 +4,25 @@ import logging
 from google.cloud import storage
 
 from .config import (
+from .shared import GCS_LIMITER
+from dist_gcs_pdf_processing.env import load_env_and_credentials
+
+
     GCS_BUCKET,
     GCS_SOURCE_PREFIX,
     GCS_DEST_PREFIX,
     STAGING_DIR,
     PROCESSED_DIR
 )
-from .shared import GCS_LIMITER
-from dist_gcs_pdf_processing.env import load_env_and_credentials
-
 load_env_and_credentials()
 
 logger = logging.getLogger("dcpr.worker")
 
-
 def gcs_path(*parts):
     return '/'.join(part.strip('/\\') for part in parts if part)
 
-
 os.makedirs(STAGING_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
-
 
 def file_exists_in_dest(file_name, trace_id=None):
     try:
@@ -40,7 +38,6 @@ def file_exists_in_dest(file_name, trace_id=None):
     except Exception:
         print(f"[FATAL][GCS_UTILS] Exception in file_exists_in_dest: {file_name}")
         return False
-
 
 def list_new_files(trace_id=None):
     try:
@@ -71,7 +68,6 @@ def list_new_files(trace_id=None):
         logger.error(f"[GCS_UTILS] Exception in list_new_files: {e}")
         raise
 
-
 def download_from_gcs(file_name, dest_dir, trace_id=None):
     try:
         storage_client = storage.Client()
@@ -84,7 +80,6 @@ def download_from_gcs(file_name, dest_dir, trace_id=None):
     except Exception as e:
         print(f"[FATAL][GCS_UTILS] Exception in download_from_gcs: {e}")
         raise
-
 
 def upload_to_gcs(file_path, dest_name=None, trace_id=None, if_generation_match=None):
     GCS_LIMITER.acquire()
@@ -101,7 +96,6 @@ def upload_to_gcs(file_path, dest_name=None, trace_id=None, if_generation_match=
     else:
         blob.upload_from_filename(file_path)
     return True
-
 
 # Batch existence check for future optimization
 # Usage: batch_file_exists_in_dest([file1, file2, ...])

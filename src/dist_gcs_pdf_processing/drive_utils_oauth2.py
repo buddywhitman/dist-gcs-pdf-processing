@@ -1,7 +1,3 @@
-"""
-Google Drive utilities for file operations using OAuth2 authentication.
-Replaces GCS functionality with Google Drive API.
-"""
 import os
 import time
 import logging
@@ -16,7 +12,8 @@ from .config import (
     DRIVE_SOURCE_FOLDER_ID,
     DRIVE_DEST_FOLDER_ID,
     STAGING_DIR,
-    PROCESSED_DIR)
+    PROCESSED_DIR
+)
 from .shared import DRIVE_LIMITER
 
 logger = logging.getLogger("dcpr.worker")
@@ -63,18 +60,16 @@ class DriveService:
                 creds.refresh(Request())
             else:
                 print("Starting OAuth2 flow for Google Drive...")
-                credentials_file = (
-                    os.path.join(os.path.dirname(__file__), '..', '..', 'cr
-                    edentials.json'))
+                credentials_file = os.path.join(
+                    os.path.dirname(__file__), '..', '..', 'credentials.json'
+                )
                 if not os.path.exists(credentials_file):
-                    raise FileNotFoundError("OAuth2 credentials file not found: {credentials_file}")
+                    raise FileNotFoundError(f"OAuth2 credentials file not found: {credentials_file}")
 
-                flow = (
-                    InstalledAppFlow.from_client_secrets_file(credentials_f
-                    ile, SCOPES))
-                creds = (
-                    flow.run_local_server(port=0)  # Let it choose any avai
-                    lable port)
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    credentials_file, SCOPES
+                )
+                creds = flow.run_local_server(port=0)  # Let it choose any available port
 
             # Save the credentials for the next run
             with open(token_file, 'wb') as token:
@@ -100,29 +95,31 @@ def list_new_files(trace_id=None):
         service = get_drive_service()
         new_files = []
 
-        print("[DEBUG][DRIVE_UTILS] Source folder ID: {DRIVE_SOURCE_FOLDER_ID}")
-        print("[DEBUG][DRIVE_UTILS] Destination folder ID: {DRIVE_DEST_FOLDER_ID}")
+        print(f"[DEBUG][DRIVE_UTILS] Source folder ID: {DRIVE_SOURCE_FOLDER_ID}")
+        print(f"[DEBUG][DRIVE_UTILS] Destination folder ID: {DRIVE_DEST_FOLDER_ID}")
 
         # Query for PDF files in source folder
         source_query = (
-            "parents in '{DRIVE_SOURCE_FOLDER_ID}' and name contains '.pd'
-            and trashed=false")
-        print("[DEBUG][DRIVE_UTILS] Source query: {source_query}")
+            f"parents in '{DRIVE_SOURCE_FOLDER_ID}' and name contains '.pdf' "
+            "and trashed=false"
+        )
+        print(f"[DEBUG][DRIVE_UTILS] Source query: {source_query}")
 
         source_results = service.files().list(
             q=source_query,
             fields="files(id, name, mimeType)"
         ).execute()
         source_files = source_results.get('files', [])
-        print("[DEBUG][DRIVE_UTILS] Found {len(source_files)} files in source folder:")
+        print(f"[DEBUG][DRIVE_UTILS] Found {len(source_files)} files in source folder:")
         for file in source_files:
-            print("[DEBUG][DRIVE_UTILS]   - {file['name']} (ID: {file['id']}, MIME: {file.get('mimeType', 'unknown')})")
+            print(f"[DEBUG][DRIVE_UTILS]   - {file['name']} (ID: {file['id']}, MIME: {file.get('mimeType', 'unknown')})")
 
         # Query for PDF files in destination folder
         dest_query = (
-            "parents in '{DRIVE_DEST_FOLDER_ID}' and name contains '.pd' an
-            d trashed=false")
-        print("[DEBUG][DRIVE_UTILS] Destination query: {dest_query}")
+            f"parents in '{DRIVE_DEST_FOLDER_ID}' and name contains '.pdf' "
+            "and trashed=false"
+        )
+        print(f"[DEBUG][DRIVE_UTILS] Destination query: {dest_query}")
 
         dest_results = service.files().list(
             q=dest_query,
@@ -138,13 +135,13 @@ def list_new_files(trace_id=None):
         for file in source_files:
             if file['name'] not in dest_file_names:
                 new_files.append(file)
-                print("[DEBUG][DRIVE_UTILS] New file found: {file['name']}")
+                print(f"[DEBUG][DRIVE_UTILS] New file found: {file['name']}")
 
         print("[DEBUG][DRIVE_UTILS] No new files found to process")
         return new_files
 
     except Exception as e:
-        print("[FATAL][DRIVE_UTILS] Exception in list_new_files: {e}")
+        print(f"[FATAL][DRIVE_UTILS] Exception in list_new_files: {e}")
         logger.error("Exception in list_new_files: {e}")
         raise
 
@@ -167,7 +164,7 @@ def download_from_drive(file_id, local_path, trace_id=None):
         file_metadata = service.files().get(fileId=file_id).execute()
         file_name = file_metadata.get('name', 'unknown')
 
-        print("[DEBUG][DRIVE_UTILS] Downloading {file_name} to {local_path}")
+        print(f"[DEBUG][DRIVE_UTILS] Downloading {file_name} to {local_path}")
 
         # Download file content
         request = service.files().get_media(fileId=file_id)
@@ -184,11 +181,11 @@ def download_from_drive(file_id, local_path, trace_id=None):
         with open(local_path, 'wb') as f:
             f.write(file_handle.getvalue())
 
-        print("[DEBUG][DRIVE_UTILS] Successfully downloaded {file_name}")
+        print(f"[DEBUG][DRIVE_UTILS] Successfully downloaded {file_name}")
         return True
 
     except Exception as e:
-        print("[ERROR][DRIVE_UTILS] Failed to download file {file_id}: {e}")
+        print(f"[ERROR][DRIVE_UTILS] Failed to download file {file_id}: {e}")
         logger.error("Failed to download file {file_id}: {e}")
         return False
 
@@ -214,7 +211,7 @@ def upload_to_drive(local_path, file_name, trace_id=None):
 
         # Get file size
         file_size = os.path.getsize(local_path)
-        print("[DEBUG][DRIVE_UTILS] Uploading {file_name} ({file_size:,} bytes) to Drive folder {DRIVE_DEST_FOLDER_ID}")
+        print(f"[DEBUG][DRIVE_UTILS] Uploading {file_name} ({file_size:,} bytes) to Drive folder {DRIVE_DEST_FOLDER_ID}")
 
         # Create file metadata
         file_metadata = {
@@ -244,7 +241,7 @@ def upload_to_drive(local_path, file_name, trace_id=None):
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    print("[DEBUG][DRIVE_UTILS] Upload attempt {attempt + 1}/{max_retries}")
+                    print(f"[DEBUG][DRIVE_UTILS] Upload attempt {attempt + 1}/{max_retries}")
                     response = None
                     while response is None:
                         status, response = request.next_chunk()
@@ -254,11 +251,11 @@ def upload_to_drive(local_path, file_name, trace_id=None):
 
                     if response:
                         file_id = response.get('id')
-                        print("[DEBUG][DRIVE_UTILS] Successfully uploaded {file_name} with ID: {file_id}")
+                        print(f"[DEBUG][DRIVE_UTILS] Successfully uploaded {file_name} with ID: {file_id}")
                         break
 
                 except Exception as e:
-                    print("[WARNING][DRIVE_UTILS] Upload attempt {attempt + 1} failed: {e}")
+                    print(f"[WARNING][DRIVE_UTILS] Upload attempt {attempt + 1} failed: {e}")
                     if attempt == max_retries - 1:
                         raise e
                     time.sleep(2 ** attempt)  # Exponential backoff
@@ -273,12 +270,12 @@ def upload_to_drive(local_path, file_name, trace_id=None):
                 fields='id'
             ).execute()
             file_id = file.get('id')
-            print("[DEBUG][DRIVE_UTILS] Successfully uploaded {file_name} with ID: {file_id}")
+            print(f"[DEBUG][DRIVE_UTILS] Successfully uploaded {file_name} with ID: {file_id}")
 
         return file_id
 
     except Exception as e:
-        print("[ERROR][DRIVE_UTILS] Failed to upload file {file_name}: {e}")
+        print(f"[ERROR][DRIVE_UTILS] Failed to upload file {file_name}: {e}")
         logger.error("Failed to upload file {file_name}: {e}")
         return None
 
@@ -297,18 +294,19 @@ def file_exists_in_dest(file_name, trace_id=None):
         service = get_drive_service()
 
         query = (
-            "parents in '{DRIVE_DEST_FOLDER_ID}' and name='{file_name}' and
-             trashed=false")
-        results = (
-            service.files().list(q=query, fields="files(id, name)").execute
-            ())
+            f"parents in '{DRIVE_DEST_FOLDER_ID}' and name='{file_name}' and "
+            "trashed=false"
+        )
+        results = service.files().list(
+            q=query, fields="files(id, name)"
+        ).execute()
         files = results.get('files', [])
 
         exists = len(files) > 0
-        print("[DEBUG][DRIVE_UTILS] File {file_name} exists in destination: {exists}")
+        print(f"[DEBUG][DRIVE_UTILS] File {file_name} exists in destination: {exists}")
         return exists
 
     except Exception as e:
-        print("[ERROR][DRIVE_UTILS] Error checking if file exists: {e}")
+        print(f"[ERROR][DRIVE_UTILS] Error checking if file exists: {e}")
         logger.error("Error checking if file exists: {e}")
         return False

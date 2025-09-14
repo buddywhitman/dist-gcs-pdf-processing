@@ -1,11 +1,11 @@
-# dist_gcs_pdf_processing package
-
 import sys
 
-
-def main():
     import uvicorn
     # Allow port override via CLI: dist_gcs_pdf_processing [port]
+
+# dist_gcs_pdf_processing package
+
+def main():
     port = 8000
     if len(sys.argv) > 1:
         try:

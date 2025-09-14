@@ -1,27 +1,11 @@
-"""
-Worker: Concurrent file and page processing with per-page retries and global Gemini API throttling.
-- File-level concurrency: MAX_CONCURRENT_FILES
-- Per-page concurrency: PAGE_MAX_WORKERS
-- Per-page retries: MAX_RETRIES
-- Global Gemini API throttling: GEMINI_GLOBAL_CONCURRENCY
-- All logs/prints/errors include per-file trace_id
-"""
 import os
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
-load_env_and_credentials()
-os.environ["G_MESSAGES_DEBUG"] = "none"
-os.environ["G_DEBUG"] = "fatal-warnings"
-os.environ["PYTHONWARNINGS"] = "ignore"
 import time
 import tempfile
 import shutil
 import logging
-from concurrent.futures import (
-    ThreadPoolExecutor,
-    as_completed,
-    wait,
-    FIRST_COMPLETED)
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import namedtuple
 from typing import List
 # import redis
@@ -33,7 +17,8 @@ from .config import (
     DOC_BATCH_SIZE,
     PAGE_MAX_WORKERS,
     STAGING_DIR,
-    PROCESSED_DIR)
+    PROCESSED_DIR
+)
 from pypdf import PdfReader, PdfWriter
 import markdown2
 from weasyprint import HTML
@@ -60,6 +45,19 @@ import concurrent.futures
 # redis_client = redis.Redis.from_url(REDIS_URL) if REDIS_URL else None
 
 # Set up a logs directory and file handler for local logging
+
+"""
+Worker: Concurrent file and page processing with per-page retries and global Gemini API throttling.
+- File-level concurrency: MAX_CONCURRENT_FILES
+- Per-page concurrency: PAGE_MAX_WORKERS
+- Per-page retries: MAX_RETRIES
+- Global Gemini API throttling: GEMINI_GLOBAL_CONCURRENCY
+- All logs/prints/errors include per-file trace_id
+"""
+load_env_and_credentials()
+os.environ["G_MESSAGES_DEBUG"] = "none"
+os.environ["G_DEBUG"] = "fatal-warnings"
+os.environ["PYTHONWARNINGS"] = "ignore"
 LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
 JSON_LOGS_DIR = os.path.join(LOGS_DIR, "json")
 DEAD_LETTER_DIR = os.path.join(LOGS_DIR, "dead_letter")
@@ -69,9 +67,9 @@ os.makedirs(DEAD_LETTER_DIR, exist_ok=True)
 
 # Set up daily rotating log file
 log_file_path = os.path.join(LOGS_DIR, "worker.log")
-file_handler = (
-    TimedRotatingFileHandler(log_file_path, when="midnight", backupCount=20
-    0))
+file_handler = TimedRotatingFileHandler(
+    log_file_path, when="midnight", backupCount=200
+)
 file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
 stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
@@ -234,28 +232,28 @@ def process_file(file_name):
                 os.makedirs(pdf_dir, exist_ok=True)
                 os.makedirs(md_dir, exist_ok=True)
                 os.makedirs(html_dir, exist_ok=True)
-                print("[INFO][{trace_id}] Downloading from GCS to {temp_dir}\n")
+                print(f"[INFO][{trace_id}] Downloading from GCS to {temp_dir}\n")
                 local_pdf = (
                     download_from_gcs(os.path.basename(file_name), temp_dir
                     , trace_id=trace_id))
-                print("[INFO][{trace_id}] Splitting PDF into pages...\n")
+                print(f"[INFO][{trace_id}] Splitting PDF into pages...\n")
                 page_files = split_pdf_to_pages(local_pdf, pdf_dir)
-                print("[INFO][{trace_id}] Split into {len(page_files)} pages\n")
+                print(f"[INFO][{trace_id}] Split into {len(page_files)} pages\n")
                 results = []
                 # Per-page concurrency, with per-page retries and global throttling
                 with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
-                    futures = (
-                        {executor.submit(ocr_page_with_retries, pf, i+1, tr
-                        ace_id): (i+1, pf) for i, pf in enumerate(page_file
-                        s)})
+                    futures = {
+                        executor.submit(ocr_page_with_retries, pf, i+1, trace_id): (i+1, pf) 
+                        for i, pf in enumerate(page_files)
+                    }
                     for future in as_completed(futures):
                         page_number, _ = futures[future]
                         markdown = future.result()
                         if markdown is not None:
                             results.append(PageResult(page_number, markdown))
-                            md_path = (
-                                os.path.join(md_dir, "page_{page_number:04d
-                                }.md"))
+                            md_path = os.path.join(
+                                md_dir, f"page_{page_number:04d}.md"
+                            )
                             with open(md_path, "w", encoding="utf-8") as md_file:
                                 md_file.write(markdown)
                             print("[SUCCESS][{trace_id}] OCR for page {page_number} complete.\n")
@@ -332,13 +330,13 @@ def _cleanup_temp_dirs():
     for d in _temp_dirs:
         try:
             shutil.rmtree(d, ignore_errors=True)
-            logger.info("Cleaned up temp dir: {d}")
+            logger.info(f"Cleaned up temp dir: {d}")
         except Exception as e:
-            logger.error("Failed to clean temp dir {d}: {e}")
+            logger.error(f"Failed to clean temp dir {d}: {e}")
 atexit.register(_cleanup_temp_dirs)
 
 def _signal_handler(signum, frame):
-    logger.info("Received signal {signum}, cleaning up and exiting...")
+    logger.info(f"Received signal {signum}, cleaning up and exiting...")
     _cleanup_temp_dirs()
     exit(0)
 for sig in (signal.SIGINT, signal.SIGTERM):
@@ -375,16 +373,16 @@ def start_worker():
                     completed.add(fname)
                 executor2 = getattr(start_worker, '_executor', None)
                 if executor2 is None:
-                    executor2 = (
-                        concurrent.futures.ThreadPoolExecutor(max_workers=M
-                        AX_CONCURRENT_FILES))
+                    executor2 = concurrent.futures.ThreadPoolExecutor(
+                        max_workers=MAX_CONCURRENT_FILES
+                    )
                     setattr(start_worker, '_executor', executor2)
                 future2 = executor2.submit(process_file, fname)
                 future2.add_done_callback(_cb)
             time.sleep(POLL_INTERVAL)
         except Exception as e:
-            print("[FATAL][WORKER] Exception in main worker loop: {e}\n")
-            logger.error("[WORKER] Exception in main worker loop: {e}")
+            print(f"[FATAL][WORKER] Exception in main worker loop: {e}\n")
+            logger.error(f"[WORKER] Exception in main worker loop: {e}")
             time.sleep(POLL_INTERVAL)
 
 # Event-driven handler for GCS notifications (to be used with Pub/Sub or HTTP trigger)
@@ -403,9 +401,9 @@ def handle_gcs_event(event_files):
 def cleanup_old_files():
     now = datetime.utcnow()
     cutoff = now - timedelta(days=200)
-    folders = (
-        [LOGS_DIR, JSON_LOGS_DIR, DEAD_LETTER_DIR, STAGING_DIR, PROCESSED_D
-        IR])
+    folders = [
+        LOGS_DIR, JSON_LOGS_DIR, DEAD_LETTER_DIR, STAGING_DIR, PROCESSED_DIR
+    ]
     for folder in folders:
         if not os.path.exists(folder):
             continue
@@ -416,14 +414,14 @@ def cleanup_old_files():
                     mtime = datetime.utcfromtimestamp(os.path.getmtime(fpath))
                     if mtime < cutoff:
                         os.remove(fpath)
-                        logger.info("Deleted old file: {fpath}")
+                        logger.info(f"Deleted old file: {fpath}")
                 elif os.path.isdir(fpath):
                     mtime = datetime.utcfromtimestamp(os.path.getmtime(fpath))
                     if mtime < cutoff:
                         shutil.rmtree(fpath, ignore_errors=True)
-                        logger.info("Deleted old directory: {fpath}")
+                        logger.info(f"Deleted old directory: {fpath}")
             except Exception as e:
-                logger.error("Failed to delete {fpath}: {e}")
+                logger.error(f"Failed to delete {fpath}: {e}")
 
 if __name__ == "__main__":
     cleanup_old_files()

@@ -3,6 +3,7 @@ import requests
 import base64
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
+
 load_env_and_credentials()
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "processed")

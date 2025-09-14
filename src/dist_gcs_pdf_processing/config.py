@@ -1,6 +1,7 @@
 import os
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
+
 load_env_and_credentials()
 
 # Google Cloud Storage configuration (legacy)
