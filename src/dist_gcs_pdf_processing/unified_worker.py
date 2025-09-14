@@ -81,9 +81,9 @@ os.makedirs(PROGRESS_DIR, exist_ok=True)
 
 # Set up daily rotating log file
 log_file_path = os.path.join(LOGS_DIR, "worker.log")
-file_handler = (
-    TimedRotatingFileHandler(log_file_path, when="midnight", backupCount=20
-    0))
+file_handler = TimedRotatingFileHandler(
+    log_file_path, when="midnight", backupCount=200
+)
 file_handler.setFormatter(
     logging.Formatter(
         '%(asctime)s %(levelname)s %(message)s'))
@@ -449,10 +449,10 @@ def process_file_with_resume(file_name, storage_backend):
                     # Process remaining pages in parallel
                     logger.info("[{trace_id}] Processing {len(pages_to_process)} pages in parallel...")
                     with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
-                        futures = (
-                            {executor.submit(ocr_page_with_retries, pf, pn,
-                             trace_id): (pn, pf) for pf, pn in pages_to_pro
-                            cess})
+                        futures = {
+                            executor.submit(ocr_page_with_retries, pf, pn, trace_id): (pn, pf) 
+                            for pf, pn in pages_to_process
+                        }
                         for future in as_completed(futures):
                             page_number, _ = futures[future]
                             markdown = future.result()
@@ -460,8 +460,7 @@ def process_file_with_resume(file_name, storage_backend):
                                 results.append(PageResult(page_number, markdown))
                                 # Save to cache
                                 safe_filename = (
-                                    file_name.replace('/', '_').replace('\\
-                                    ', '_'))
+                                    file_name.replace('/', '_').replace('\\', '_'))
                                 cached_md_path = os.path.join(
                                     PROGRESS_DIR, f"{safe_filename}_page_{page_number:04d}.md"
                                 )
@@ -536,9 +535,9 @@ def process_file_with_resume(file_name, storage_backend):
                 save_file_progress(file_name, progress)
 
                 logger.info("[{trace_id}] Uploading merged PDF as {os.path.basename(file_name)}")
-                upload_result = (
-                    storage_backend.upload_file(merged_pdf_path, os.path.ba
-                    sename(file_name), trace_id=trace_id))
+                upload_result = storage_backend.upload_file(
+                    merged_pdf_path, os.path.basename(file_name), trace_id=trace_id
+                )
 
                 if upload_result:
                     logger.info("[{trace_id}] Finished processing {file_name}")
@@ -583,9 +582,9 @@ def cleanup_old_files():
     """Clean up old log and temporary files."""
     now = datetime.utcnow()
     cutoff = now - timedelta(days=200)
-    folders = (
-        [LOGS_DIR, JSON_LOGS_DIR, DEAD_LETTER_DIR, PROGRESS_DIR, STAGING_DI
-        R, PROCESSED_DIR])
+    folders = [
+        LOGS_DIR, JSON_LOGS_DIR, DEAD_LETTER_DIR, PROGRESS_DIR, STAGING_DIR, PROCESSED_DIR
+    ]
     for folder in folders:
         if not os.path.exists(folder):
             continue
@@ -670,14 +669,14 @@ def start_worker(storage_backend):
 
                 executor2 = getattr(start_worker, '_executor', None)
                 if executor2 is None:
-                    executor2 = (
-                        concurrent.futures.ThreadPoolExecutor(max_workers=M
-                        AX_CONCURRENT_FILES))
+                    executor2 = concurrent.futures.ThreadPoolExecutor(
+                        max_workers=MAX_CONCURRENT_FILES
+                    )
                     setattr(start_worker, '_executor', executor2)
 
-                future2 = (
-                    executor2.submit(process_file_with_resume, fname, stora
-                    ge_backend))
+                future2 = executor2.submit(
+                    process_file_with_resume, fname, storage_backend
+                )
                 future2.add_done_callback(_cb)
                 logger.info("Started processing: {fname}")
 
