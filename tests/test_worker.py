@@ -2,6 +2,9 @@ import os
 import tempfile
 import pytest
 from dist_gcs_pdf_processing.unified_worker import (
+    process_file,
+    process_files
+)
 from pypdf import PdfWriter, PdfReader
 import shutil
 from unittest.mock import patch, MagicMock, call
@@ -13,14 +16,6 @@ import glob
 
 import dist_gcs_pdf_processing.unified_worker as worker_mod
 from dist_gcs_pdf_processing.unified_worker import gemini_global_semaphore
-
-    split_pdf_to_pages,
-    get_pdf_page_count,
-    process_file_with_resume,
-    MAX_CONCURRENT_FILES,
-    MAX_RETRIES,
-    GEMINI_GLOBAL_CONCURRENCY
-)
 def create_sample_pdf(path, num_pages=3):
     writer = PdfWriter()
     for _ in range(num_pages):

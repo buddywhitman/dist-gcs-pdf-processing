@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 
-
 def load_env_and_credentials():
     # Look for .env in the project root's secrets directory
     # Get the project root (two levels up from this file)

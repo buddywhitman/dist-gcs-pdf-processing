@@ -4,7 +4,6 @@ from unittest.mock import patch
 from dist_gcs_pdf_processing.ocr import gemini_ocr_page
 import tempfile
 
-
 @patch("dist_gcs_pdf_processing.ocr.requests.post")
 def test_gemini_ocr_page_success(mock_post):
     # Simulate Gemini API returning markdown

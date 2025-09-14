@@ -47,7 +47,8 @@ import concurrent.futures
 # Set up a logs directory and file handler for local logging
 
 """
-Worker: Concurrent file and page processing with per-page retries and global Gemini API throttling.
+Worker: Concurrent file and
+    page processing with per-page retries and global Gemini API throttling.
 - File-level concurrency: MAX_CONCURRENT_FILES
 - Per-page concurrency: PAGE_MAX_WORKERS
 - Per-page retries: MAX_RETRIES
@@ -243,7 +244,8 @@ def process_file(file_name):
                 # Per-page concurrency, with per-page retries and global throttling
                 with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
                     futures = {
-                        executor.submit(ocr_page_with_retries, pf, i+1, trace_id): (i+1, pf)
+                        executor.submit(ocr_page_with_retries, pf, i+1, trace_id): (
+    i+1, pf)
                         for i, pf in enumerate(page_files)
                     }
                     for future in as_completed(futures):

@@ -4,14 +4,13 @@ import logging
 from google.cloud import storage
 
 from .config import (
-from .shared import GCS_LIMITER
-from dist_gcs_pdf_processing.env import load_env_and_credentials
-
-    GCS_SOURCE_BUCKET,
-    GCS_DEST_BUCKET,
+    GCS_BUCKET_NAME,
     STAGING_DIR,
     PROCESSED_DIR
 )
+from .shared import GCS_LIMITER
+from dist_gcs_pdf_processing.env import load_env_and_credentials
+
 load_env_and_credentials()
 
 logger = logging.getLogger("dcpr.worker")

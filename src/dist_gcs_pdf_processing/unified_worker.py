@@ -12,6 +12,12 @@ from typing import List, Dict, Set, Optional
 from .storage_interface import get_storage_backend
 from .ocr import gemini_ocr_page
 from .config import (
+    POLL_INTERVAL,
+    DOC_BATCH_SIZE,
+    PAGE_MAX_WORKERS,
+    STAGING_DIR,
+    PROCESSED_DIR
+)
 from pypdf import PdfReader, PdfWriter
 import markdown2
 from weasyprint import HTML
@@ -32,22 +38,11 @@ import redis
 from contextlib import contextmanager
 
 # Windows compatibility for file locking
+try:
     import fcntl
+except ImportError:
+    # Windows doesn't have fcntl, use msvcrt instead
     import msvcrt
-    import fcntl
-
-    POLL_INTERVAL,
-    DOC_BATCH_SIZE,
-    PAGE_MAX_WORKERS,
-    STAGING_DIR,
-    PROCESSED_DIR
-)
-try:
-except ImportError:
-    fcntl = None
-try:
-except ImportError:
-    msvcrt = None
 
 # Set up a logs directory and file handler for local logging
 
@@ -459,8 +454,7 @@ def process_file_with_resume(file_name, storage_backend):
                     logger.info(f"[{trace_id}] Processing {len(pages_to_process)} pages in parallel...")
                     with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
                         futures = {
-                            executor.submit(ocr_page_with_retries, pf, pn, trace_id): (
-    pn, pf)
+                            executor.submit(ocr_page_with_retries, pf, pn, trace_id): (pn, pf)
                             for pf, pn in pages_to_process
                         }
                         for future in as_completed(futures):
@@ -669,8 +663,8 @@ def start_worker(storage_backend):
             # Only fetch new files if we have room to process more
             if len(in_progress) < MAX_CONCURRENT_FILES:
                 for f in new_files:
-                    if f not in in_progress and
-    f not in completed and f not in pending:
+                    if (f not in in_progress and
+                        f not in completed and f not in pending):
                         pending.add(f)
                         logger.info(f"Added to pending queue: {f}")
 

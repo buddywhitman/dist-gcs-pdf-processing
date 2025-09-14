@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 from dist_gcs_pdf_processing.unified_worker import (
 
-
     log_json, log_dead_letter, log_supabase_error
 )
 

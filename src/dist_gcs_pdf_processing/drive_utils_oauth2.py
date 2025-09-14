@@ -9,13 +9,12 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 import io
 import pickle
 from .config import (
-from .shared import DRIVE_LIMITER
-
     DRIVE_SOURCE_FOLDER_ID,
     DRIVE_DEST_FOLDER_ID,
     STAGING_DIR,
     PROCESSED_DIR
 )
+from .shared import DRIVE_LIMITER
 logger = logging.getLogger("dcpr.worker")
 
 # Google Drive API scopes

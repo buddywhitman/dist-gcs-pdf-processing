@@ -3,7 +3,6 @@ import uvicorn
 
 # dist_gcs_pdf_processing package
 
-
 def main():
     port = 8000
     if len(sys.argv) > 1:
