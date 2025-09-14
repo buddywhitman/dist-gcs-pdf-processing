@@ -45,6 +45,7 @@ import concurrent.futures
 # redis_client = redis.Redis.from_url(REDIS_URL) if REDIS_URL else None
 
 # Set up a logs directory and file handler for local logging
+
 """
 Worker: Concurrent file and page processing with per-page retries and global Gemini API throttling.
 - File-level concurrency: MAX_CONCURRENT_FILES
@@ -242,8 +243,7 @@ def process_file(file_name):
                 # Per-page concurrency, with per-page retries and global throttling
                 with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
                     futures = {
-                        executor.submit(ocr_page_with_retries, pf, i+1, trace_id): (
-    i+1, pf)
+                        executor.submit(ocr_page_with_retries, pf, i+1, trace_id): (i+1, pf)
                         for i, pf in enumerate(page_files)
                     }
                     for future in as_completed(futures):
@@ -332,6 +332,7 @@ def _cleanup_temp_dirs():
             shutil.rmtree(d, ignore_errors=True)
             logger.info(f"Cleaned up temp dir: {d}")
         except Exception as e:
+
             logger.error(f"Failed to clean temp dir {d}: {e}")
 atexit.register(_cleanup_temp_dirs)
 
@@ -362,7 +363,8 @@ def start_worker():
             # Only fetch new files if we have room to process more
             if len(in_progress) < MAX_CONCURRENT_FILES:
                 for f in new_files:
-                    if f not in in_progress and f not in completed and f not in pending:
+                    if (f not in in_progress and
+                        f not in completed and f not in pending):
                         pending.add(f)
             # Start new files if we have capacity
             while len(in_progress) < MAX_CONCURRENT_FILES and pending:
@@ -421,6 +423,7 @@ def cleanup_old_files():
                         shutil.rmtree(fpath, ignore_errors=True)
                         logger.info(f"Deleted old directory: {fpath}")
             except Exception as e:
+
                 logger.error(f"Failed to delete {fpath}: {e}")
 
 if __name__ == "__main__":

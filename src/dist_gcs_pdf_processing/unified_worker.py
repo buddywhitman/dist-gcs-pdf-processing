@@ -12,12 +12,6 @@ from typing import List, Dict, Set, Optional
 from .storage_interface import get_storage_backend
 from .ocr import gemini_ocr_page
 from .config import (
-    POLL_INTERVAL,
-    DOC_BATCH_SIZE,
-    PAGE_MAX_WORKERS,
-    STAGING_DIR,
-    PROCESSED_DIR
-)
 from pypdf import PdfReader, PdfWriter
 import markdown2
 from weasyprint import HTML
@@ -38,17 +32,24 @@ import redis
 from contextlib import contextmanager
 
 # Windows compatibility for file locking
-try:
     import fcntl
+    import msvcrt
+    import fcntl
+
+    POLL_INTERVAL,
+    DOC_BATCH_SIZE,
+    PAGE_MAX_WORKERS,
+    STAGING_DIR,
+    PROCESSED_DIR
+)
+try:
 except ImportError:
     fcntl = None
 try:
-    import msvcrt
 except ImportError:
     msvcrt = None
 
 # Set up a logs directory and file handler for local logging
-
 
 """
 Unified PDF Processing Worker: Comprehensive worker with resume capability,
@@ -56,7 +57,8 @@ concurrent processing, distributed locking, and multi-storage backend support.
 
 Features:
 - Resume capability: Can resume from where it left off after crashes
-- Concurrent processing: File-level and page-level concurrency with backpressure
+- Concurrent processing: File-level and
+    page-level concurrency with backpressure
 - Multi-storage backends: GCS and Google Drive support via StorageInterface
 - Distributed locking: Prevents duplicate processing across instances
 - Comprehensive logging: JSON logs, dead letter queue, Supabase integration
@@ -71,7 +73,6 @@ os.environ["PYTHONWARNINGS"] = "ignore"
 
 # Check for fcntl availability
 try:
-    import fcntl
     HAS_FCNTL = True
 except ImportError:
     HAS_FCNTL = False
@@ -266,6 +267,7 @@ def is_valid_pdf(file_path):
                 return False
         return True
     except Exception as e:
+
         logger.error(f"Exception while validating PDF: {e}")
         return False
 
@@ -296,6 +298,7 @@ def get_pdf_page_count(pdf_path):
         reader = PdfReader(pdf_path)
         return len(reader.pages)
     except Exception as e:
+
         logger.error(f"Could not read PDF: {e}")
         return 0
 
@@ -353,6 +356,7 @@ def ocr_page_with_retries(pdf_path, page_number, trace_id):
                 markdown = gemini_ocr_page(pdf_path, page_number)
             return markdown
         except Exception as e:
+
             logger.error(f"[{trace_id}] OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}")
             log_json("ocr_error", f"OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}", trace_id=trace_id)
             if attempt == MAX_RETRIES:
@@ -455,7 +459,8 @@ def process_file_with_resume(file_name, storage_backend):
                     logger.info(f"[{trace_id}] Processing {len(pages_to_process)} pages in parallel...")
                     with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
                         futures = {
-                            executor.submit(ocr_page_with_retries, pf, pn, trace_id): (pn, pf)
+                            executor.submit(ocr_page_with_retries, pf, pn, trace_id): (
+    pn, pf)
                             for pf, pn in pages_to_process
                         }
                         for future in as_completed(futures):
@@ -508,6 +513,7 @@ def process_file_with_resume(file_name, storage_backend):
                         single_pdf_paths.append(pdf_path)
                         logger.info(f"[{trace_id}] Markdown to PDF for page {page_number} complete")
                     except Exception as e:
+
                         logger.error(f"[{trace_id}] Markdown to PDF failed for page {page_number}: {e}")
 
                 # Merge PDFs
@@ -518,6 +524,7 @@ def process_file_with_resume(file_name, storage_backend):
                         reader = PdfReader(pdf)
                         writer.add_page(reader.pages[0])
                     except Exception as e:
+
                         logger.error(f"[{trace_id}] Merging page PDF failed for {pdf}: {e}")
 
                 with open(merged_pdf_path, "wb") as f:
@@ -567,6 +574,8 @@ def process_file_with_resume(file_name, storage_backend):
                     return False
 
         except Exception as e:
+
+
             logger.error(f"[{trace_id}] Fatal error processing {file_name}: {e}")
             log_json("fatal_error", f"Fatal error processing {file_name}: {e}", trace_id=trace_id)
             log_dead_letter(file_name, f"Fatal error: {e}", trace_id=trace_id)
@@ -607,6 +616,7 @@ def cleanup_old_files():
                         shutil.rmtree(fpath, ignore_errors=True)
                         logger.info(f"Deleted old directory: {fpath}")
             except Exception as e:
+
                 logger.error(f"Failed to delete {fpath}: {e}")
 
 # Register cleanup for graceful shutdown
@@ -620,6 +630,7 @@ def _cleanup_temp_dirs():
             shutil.rmtree(d, ignore_errors=True)
             logger.info(f"Cleaned up temp dir: {d}")
         except Exception as e:
+
             logger.error(f"Failed to clean temp dir {d}: {e}")
 
 atexit.register(_cleanup_temp_dirs)
@@ -658,7 +669,8 @@ def start_worker(storage_backend):
             # Only fetch new files if we have room to process more
             if len(in_progress) < MAX_CONCURRENT_FILES:
                 for f in new_files:
-                    if f not in in_progress and f not in completed and f not in pending:
+                    if f not in in_progress and
+    f not in completed and f not in pending:
                         pending.add(f)
                         logger.info(f"Added to pending queue: {f}")
 
@@ -692,6 +704,8 @@ def start_worker(storage_backend):
             time.sleep(POLL_INTERVAL)
 
         except Exception as e:
+
+
             logger.error(f"Exception in main worker loop: {e}")
             time.sleep(POLL_INTERVAL)
 
@@ -721,6 +735,7 @@ def main():
     try:
         start_worker(storage_backend)
     except Exception as e:
+
         logger.error(f"Fatal error: {e}")
         sys.exit(1)
 

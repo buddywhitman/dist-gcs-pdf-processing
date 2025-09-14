@@ -5,13 +5,13 @@ from fastapi import FastAPI, Request, HTTPException
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
 from dist_gcs_pdf_processing.worker import (
-    start_worker,
-    cleanup_old_files
-)
 import logging
 import uvicorn
 
 
+    start_worker,
+    cleanup_old_files
+)
 load_env_and_credentials()
 
 os.environ["G_MESSAGES_DEBUG"] = "none"

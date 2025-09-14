@@ -4,18 +4,18 @@ import os
 import time
 
 from .gcs_utils import (
+from .drive_utils_oauth2 import (
+
     download_from_gcs,
     upload_to_gcs,
     list_new_files as gcs_list_new_files,
     file_exists_in_dest as gcs_file_exists
 )
-from .drive_utils_oauth2 import (
     download_from_drive,
     upload_to_drive,
     list_new_files as drive_list_new_files,
     file_exists_in_dest as drive_file_exists
 )
-
 
 """
 Abstract storage interface for pluggable storage backends.
@@ -30,17 +30,20 @@ class StorageInterface(ABC):
         pass
 
     @abstractmethod
-    def download_file(self, file_name: str, local_path: str, trace_id: Optional[str] = None) -> bool:
+    def download_file(self, file_name: str, local_path: str, trace_id: Optional[str] = (
+    None) -> bool:)
         """Download a file to local path. Returns True if successful."""
         pass
 
     @abstractmethod
-    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = None, if_generation_match: int = 0) -> bool:
+    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = (
+    None, if_generation_match: int = 0) -> bool:)
         """Upload a file from local path. Returns True if successful."""
         pass
 
     @abstractmethod
-    def file_exists(self, file_name: str, trace_id: Optional[str] = None) -> bool:
+    def file_exists(self, file_name: str, trace_id: Optional[str] = (
+    None) -> bool:)
         """Check if file exists in destination. Returns True if exists."""
         pass
 
@@ -56,13 +59,16 @@ class GCSStorage(StorageInterface):
     def list_new_files(self) -> List[str]:
         return self._list_new_files()
 
-    def download_file(self, file_name: str, local_path: str, trace_id: Optional[str] = None) -> bool:
+    def download_file(self, file_name: str, local_path: str, trace_id: Optional[str] = (
+    None) -> bool:)
         return self._download_file(file_name, local_path, trace_id)
 
-    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = None, if_generation_match: int = 0) -> bool:
+    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = (
+    None, if_generation_match: int = 0) -> bool:)
         return self._upload_file(local_path, file_name, trace_id, if_generation_match)
 
-    def file_exists(self, file_name: str, trace_id: Optional[str] = None) -> bool:
+    def file_exists(self, file_name: str, trace_id: Optional[str] = (
+    None) -> bool:)
         return self._file_exists(file_name, trace_id)
 
 class DriveStorage(StorageInterface):
@@ -81,7 +87,8 @@ class DriveStorage(StorageInterface):
         current_time = time.time()
 
         # Use cache if it's fresh enough
-        if current_time - self._last_list_time < self._cache_ttl and self._file_cache:
+        if current_time - self._last_list_time < self._cache_ttl and
+    self._file_cache:
             return list(self._file_cache.keys())
 
         # Fetch fresh data
@@ -90,7 +97,8 @@ class DriveStorage(StorageInterface):
         self._last_list_time = current_time
         return list(self._file_cache.keys())
 
-    def download_file(self, file_name: str, local_path: str, trace_id: Optional[str] = None) -> bool:
+    def download_file(self, file_name: str, local_path: str, trace_id: Optional[str] = (
+    None) -> bool:)
         # Get file info from cache
         if file_name not in self._file_cache:
             # Refresh cache if file not found
@@ -101,10 +109,12 @@ class DriveStorage(StorageInterface):
             return False
         return self._download_file(file_info['id'], local_path, trace_id)
 
-    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = None, if_generation_match: int = 0) -> bool:
+    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = (
+    None, if_generation_match: int = 0) -> bool:)
         return self._upload_file(local_path, file_name, trace_id)
 
-    def file_exists(self, file_name: str, trace_id: Optional[str] = None) -> bool:
+    def file_exists(self, file_name: str, trace_id: Optional[str] = (
+    None) -> bool:)
         return self._file_exists(file_name, trace_id)
 
 def get_storage_backend(backend_type: str = None) -> StorageInterface:
