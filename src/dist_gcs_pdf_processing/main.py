@@ -5,19 +5,18 @@ from fastapi import FastAPI, Request, HTTPException
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
 from dist_gcs_pdf_processing.worker import (
-    import logging
-    import uvicorn
+    start_worker,
+    cleanup_old_files
+)
+import logging
+import uvicorn
+
 
 load_env_and_credentials()
 
 os.environ["G_MESSAGES_DEBUG"] = "none"
 os.environ["G_DEBUG"] = "fatal-warnings"
 os.environ["PYTHONWARNINGS"] = "ignore"
-
-    start_worker,
-    handle_gcs_event,
-    MAX_CONCURRENT_FILES
-)
 
 app = FastAPI()
 

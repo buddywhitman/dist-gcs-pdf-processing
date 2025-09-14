@@ -1,9 +1,8 @@
 import sys
-
-    import uvicorn
-    # Allow port override via CLI: dist_gcs_pdf_processing [port]
+import uvicorn
 
 # dist_gcs_pdf_processing package
+
 
 def main():
     port = 8000
@@ -11,6 +10,6 @@ def main():
         try:
             port = int(sys.argv[1])
         except Exception:
-            print("[WARN] Invalid port argument: {sys.argv[1]}")
+            print(f"[WARN] Invalid port argument: {sys.argv[1]}")
     uvicorn.run("dist_gcs_pdf_processing.main:app", host="0.0.0.0",
                 port=port, reload=True)

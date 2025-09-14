@@ -15,7 +15,6 @@ from .config import (
     PROCESSED_DIR
 )
 from .shared import DRIVE_LIMITER
-
 logger = logging.getLogger("dcpr.worker")
 
 # Google Drive API scopes
@@ -126,9 +125,9 @@ def list_new_files(trace_id=None):
             fields="files(id, name, mimeType)"
         ).execute()
         dest_files = dest_results.get('files', [])
-        print("[DEBUG][DRIVE_UTILS] Found {len(dest_files)} files in destination folder:")
+        print(f"[DEBUG][DRIVE_UTILS] Found {len(dest_files)} files in destination folder:")
         for file in dest_files:
-            print("[DEBUG][DRIVE_UTILS]   - {file['name']} (ID: {file['id']}, MIME: {file.get('mimeType', 'unknown')})")
+            print(f"[DEBUG][DRIVE_UTILS]   - {file['name']} (ID: {file['id']}, MIME: {file.get('mimeType', 'unknown')})")
 
         # Find files that are in source but not in destination
         dest_file_names = {file['name'] for file in dest_files}
@@ -142,7 +141,7 @@ def list_new_files(trace_id=None):
 
     except Exception as e:
         print(f"[FATAL][DRIVE_UTILS] Exception in list_new_files: {e}")
-        logger.error("Exception in list_new_files: {e}")
+        logger.error(f"Exception in list_new_files: {e}")
         raise
 
 def download_from_drive(file_id, local_path, trace_id=None):
@@ -175,7 +174,7 @@ def download_from_drive(file_id, local_path, trace_id=None):
         while done is False:
             status, done = downloader.next_chunk()
             if trace_id:
-                print("[DEBUG][DRIVE_UTILS] Download progress: {int(status.progress() * 100)}%")
+                print(f"[DEBUG][DRIVE_UTILS] Download progress: {int(status.progress() * 100)}%")
 
         # Save to local file
         with open(local_path, 'wb') as f:
@@ -186,7 +185,7 @@ def download_from_drive(file_id, local_path, trace_id=None):
 
     except Exception as e:
         print(f"[ERROR][DRIVE_UTILS] Failed to download file {file_id}: {e}")
-        logger.error("Failed to download file {file_id}: {e}")
+        logger.error(f"Failed to download file {file_id}: {e}")
         return False
 
 def upload_to_drive(local_path, file_name, trace_id=None):
@@ -206,7 +205,7 @@ def upload_to_drive(local_path, file_name, trace_id=None):
 
         # Check if file already exists
         if file_exists_in_dest(file_name, trace_id):
-            print("[DEBUG][DRIVE_UTILS] File {file_name} already exists in destination, skipping upload")
+            print(f"[DEBUG][DRIVE_UTILS] File {file_name} already exists in destination, skipping upload")
             return "exists"
 
         # Get file size
@@ -221,7 +220,7 @@ def upload_to_drive(local_path, file_name, trace_id=None):
 
         # Use chunked upload for files larger than 5MB
         if file_size > 5 * 1024 * 1024:  # 5MB
-            print("[DEBUG][DRIVE_UTILS] Using chunked upload for large file ({file_size:,} bytes)")
+            print(f"[DEBUG][DRIVE_UTILS] Using chunked upload for large file ({file_size:,} bytes)")
             media = MediaFileUpload(
                 local_path,
                 mimetype='application/pd',
@@ -247,7 +246,7 @@ def upload_to_drive(local_path, file_name, trace_id=None):
                         status, response = request.next_chunk()
                         if status:
                             progress = int(status.progress() * 100)
-                            print("[DEBUG][DRIVE_UTILS] Upload progress: {progress}%")
+                            print(f"[DEBUG][DRIVE_UTILS] Upload progress: {progress}%")
 
                     if response:
                         file_id = response.get('id')
@@ -262,7 +261,7 @@ def upload_to_drive(local_path, file_name, trace_id=None):
 
         else:
             # Use simple upload for small files
-            print("[DEBUG][DRIVE_UTILS] Using simple upload for small file ({file_size:,} bytes)")
+            print(f"[DEBUG][DRIVE_UTILS] Using simple upload for small file ({file_size:,} bytes)")
             media = MediaFileUpload(local_path, mimetype='application/pd')
             file = service.files().create(
                 body=file_metadata,
@@ -276,7 +275,7 @@ def upload_to_drive(local_path, file_name, trace_id=None):
 
     except Exception as e:
         print(f"[ERROR][DRIVE_UTILS] Failed to upload file {file_name}: {e}")
-        logger.error("Failed to upload file {file_name}: {e}")
+        logger.error(f"Failed to upload file {file_name}: {e}")
         return None
 
 def file_exists_in_dest(file_name, trace_id=None):
@@ -308,5 +307,5 @@ def file_exists_in_dest(file_name, trace_id=None):
 
     except Exception as e:
         print(f"[ERROR][DRIVE_UTILS] Error checking if file exists: {e}")
-        logger.error("Error checking if file exists: {e}")
+        logger.error(f"Error checking if file exists: {e}")
         return False

@@ -45,7 +45,6 @@ import concurrent.futures
 # redis_client = redis.Redis.from_url(REDIS_URL) if REDIS_URL else None
 
 # Set up a logs directory and file handler for local logging
-
 """
 Worker: Concurrent file and page processing with per-page retries and global Gemini API throttling.
 - File-level concurrency: MAX_CONCURRENT_FILES
@@ -176,7 +175,7 @@ def is_valid_pdf(file_path):
                 return False
         return True
     except Exception as e:
-        print("[ERROR] Exception while validating PDF: {e}\n")
+        print(f"[ERROR] Exception while validating PDF: {e}\n")
         return False
 
 def get_pdf_page_count(pdf_path):
@@ -184,7 +183,7 @@ def get_pdf_page_count(pdf_path):
         reader = PdfReader(pdf_path)
         return len(reader.pages)
     except Exception as e:
-        print("[ERROR] Could not read PDF: {e}\n")
+        print(f"[ERROR] Could not read PDF: {e}\n")
         return 0
 
 MAX_CONCURRENT_WORKERS = int(os.getenv("MAX_CONCURRENT_WORKERS", 8))
@@ -210,8 +209,8 @@ def ocr_page_with_retries(pdf_path, page_number, trace_id):
                 markdown = gemini_ocr_page(pdf_path, page_number)
             return markdown
         except Exception as e:
-            print("[ERROR][{trace_id}] OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}\n")
-            logger.error("[{trace_id}] Error processing page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}")
+            print(f"[ERROR][{trace_id}] OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}\n")
+            logger.error(f"[{trace_id}] Error processing page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}")
             log_json("ocr_error", "OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}", trace_id=trace_id)
             if attempt == MAX_RETRIES:
                 return None
@@ -219,8 +218,8 @@ def ocr_page_with_retries(pdf_path, page_number, trace_id):
 
 def process_file(file_name):
     trace_id = str(uuid.uuid4())
-    print("[START][{trace_id}] Processing file: {file_name}\n")
-    logger.info("[{trace_id}] Processing file: {file_name}")
+    print(f"[START][{trace_id}] Processing file: {file_name}\n")
+    logger.info(f"[{trace_id}] Processing file: {file_name}")
     log_json("start_processing", "Processing file: {file_name}", trace_id=trace_id, extra={"trace_id": trace_id})
     retries = 0
     while retries < MAX_RETRIES:
@@ -243,7 +242,8 @@ def process_file(file_name):
                 # Per-page concurrency, with per-page retries and global throttling
                 with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
                     futures = {
-                        executor.submit(ocr_page_with_retries, pf, i+1, trace_id): (i+1, pf) 
+                        executor.submit(ocr_page_with_retries, pf, i+1, trace_id): (
+    i+1, pf)
                         for i, pf in enumerate(page_files)
                     }
                     for future in as_completed(futures):
@@ -256,10 +256,10 @@ def process_file(file_name):
                             )
                             with open(md_path, "w", encoding="utf-8") as md_file:
                                 md_file.write(markdown)
-                            print("[SUCCESS][{trace_id}] OCR for page {page_number} complete.\n")
+                            print(f"[SUCCESS][{trace_id}] OCR for page {page_number} complete.\n")
                         else:
-                            print("[ERROR][{trace_id}] OCR permanently failed for page {page_number} after {MAX_RETRIES} attempts.\n")
-                            logger.error("[{trace_id}] OCR permanently failed for page {page_number} after {MAX_RETRIES} attempts.")
+                            print(f"[ERROR][{trace_id}] OCR permanently failed for page {page_number} after {MAX_RETRIES} attempts.\n")
+                            logger.error(f"[{trace_id}] OCR permanently failed for page {page_number} after {MAX_RETRIES} attempts.")
                             log_json("ocr_permanent_error", "OCR permanently failed for page {page_number}", trace_id=trace_id)
                 results.sort(key=lambda x: x.page_number)
                 markdown_pages = [r.markdown for r in results]
@@ -269,10 +269,10 @@ def process_file(file_name):
                     try:
                         markdown_to_pdf(md, pdf_path, html_dir, i+1)
                         single_pdf_paths.append(pdf_path)
-                        print("[SUCCESS][{trace_id}] Markdown to PDF for page {i+1} complete.\n")
+                        print(f"[SUCCESS][{trace_id}] Markdown to PDF for page {i+1} complete.\n")
                     except Exception as e:
-                        print("[ERROR][{trace_id}] Markdown to PDF failed for page {i+1}: {e}\n")
-                        logger.error("[{trace_id}] Error converting markdown to PDF for page {i+1}: {e}")
+                        print(f"[ERROR][{trace_id}] Markdown to PDF failed for page {i+1}: {e}\n")
+                        logger.error(f"[{trace_id}] Error converting markdown to PDF for page {i+1}: {e}")
                         log_json("markdown_to_pdf_error", "Markdown to PDF failed for page {i+1}: {e}", trace_id=trace_id)
                 merged_pdf_path = os.path.join(temp_dir, "merged.pdf")
                 writer = PdfWriter()
@@ -281,43 +281,43 @@ def process_file(file_name):
                         reader = PdfReader(pdf)
                         writer.add_page(reader.pages[0])
                     except Exception as e:
-                        print("[ERROR][{trace_id}] Merging page PDF failed for {pdf}: {e}\n")
-                        logger.error("[{trace_id}] Error merging page PDF {pdf}: {e}")
+                        print(f"[ERROR][{trace_id}] Merging page PDF failed for {pdf}: {e}\n")
+                        logger.error(f"[{trace_id}] Error merging page PDF {pdf}: {e}")
                         log_json("merge_error", "Merging page PDF failed for {pdf}: {e}", trace_id=trace_id)
                 with open(merged_pdf_path, "wb") as f:
                     writer.write(f)
-                print("[INFO][{trace_id}] Checking merged PDF at {merged_pdf_path}\n")
+                print(f"[INFO][{trace_id}] Checking merged PDF at {merged_pdf_path}\n")
                 merged_pdf_size = os.path.getsize(merged_pdf_path)
-                print("[INFO][{trace_id}] Merged PDF size: {merged_pdf_size} bytes\n")
+                print(f"[INFO][{trace_id}] Merged PDF size: {merged_pdf_size} bytes\n")
                 original_page_count = get_pdf_page_count(local_pdf)
                 output_page_count = get_pdf_page_count(merged_pdf_path)
-                print("[INFO][{trace_id}] Original PDF pages: {original_page_count}, Output PDF pages: {output_page_count}\n")
+                print(f"[INFO][{trace_id}] Original PDF pages: {original_page_count}, Output PDF pages: {output_page_count}\n")
                 if original_page_count != output_page_count:
-                    print("[ERROR][{trace_id}] Page count mismatch! Retrying ({retries+1}/{MAX_RETRIES})...\n")
-                    logger.error("[{trace_id}] Page count mismatch for {file_name}. Retrying.")
+                    print(f"[ERROR][{trace_id}] Page count mismatch! Retrying ({retries+1}/{MAX_RETRIES})...\n")
+                    logger.error(f"[{trace_id}] Page count mismatch for {file_name}. Retrying.")
                     log_json("page_count_mismatch", "Page count mismatch for {file_name}. Retrying.", trace_id=trace_id)
                     retries += 1
                     continue
-                print("[INFO][{trace_id}] Uploading merged PDF to GCS as {os.path.basename(file_name)}\n")
+                print(f"[INFO][{trace_id}] Uploading merged PDF to GCS as {os.path.basename(file_name)}\n")
                 try:
                     upload_to_gcs(merged_pdf_path, os.path.basename(file_name), trace_id=trace_id, if_generation_match=0)
                 except Exception as e:
-                    print("[ERROR][{trace_id}] Upload to GCS failed: {e}\n")
-                    logger.error("[{trace_id}] Upload to GCS failed for {file_name}: {e}")
+                    print(f"[ERROR][{trace_id}] Upload to GCS failed: {e}\n")
+                    logger.error(f"[{trace_id}] Upload to GCS failed for {file_name}: {e}")
                     log_json("gcs_upload_error", "Upload to GCS failed for {file_name}: {e}", trace_id=trace_id)
                     retries += 1
                     continue
-                print("[SUCCESS][{trace_id}] Finished processing {file_name}\n")
-                logger.info("[{trace_id}] Finished processing {file_name}")
+                print(f"[SUCCESS][{trace_id}] Finished processing {file_name}\n")
+                logger.info(f"[{trace_id}] Finished processing {file_name}")
                 log_json("success", "Finished processing {file_name}", trace_id=trace_id)
                 return
         except Exception as e:
-            print("[FATAL ERROR][{trace_id}] Processing failed for {file_name}: {e}\n")
-            logger.error("[{trace_id}] Fatal error processing {file_name}: {e}")
+            print(f"[FATAL ERROR][{trace_id}] Processing failed for {file_name}: {e}\n")
+            logger.error(f"[{trace_id}] Fatal error processing {file_name}: {e}")
             log_json("fatal_error", "Fatal error processing {file_name}: {e}", trace_id=trace_id)
             retries += 1
-    print("[ERROR][{trace_id}] Max retries reached for {file_name}. Skipping file.\n")
-    logger.error("[{trace_id}] Max retries reached for {file_name}. Skipping file.")
+    print(f"[ERROR][{trace_id}] Max retries reached for {file_name}. Skipping file.\n")
+    logger.error(f"[{trace_id}] Max retries reached for {file_name}. Skipping file.")
     log_json("persistent_error", "Max retries reached for {file_name}. Skipping file.", extra={"file_name": file_name}, trace_id=trace_id)
     log_dead_letter(file_name, "Max retries reached. Skipping file.", trace_id=trace_id)
     log_supabase_error("Max retries reached for {file_name}. Skipping file.", created_time=datetime.utcnow().isoformat())

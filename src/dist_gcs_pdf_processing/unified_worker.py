@@ -6,12 +6,18 @@ import time
 import tempfile
 import shutil
 import logging
-from concurrent.futures import (
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import namedtuple
 from typing import List, Dict, Set, Optional
 from .storage_interface import get_storage_backend
 from .ocr import gemini_ocr_page
 from .config import (
+    POLL_INTERVAL,
+    DOC_BATCH_SIZE,
+    PAGE_MAX_WORKERS,
+    STAGING_DIR,
+    PROCESSED_DIR
+)
 from pypdf import PdfReader, PdfWriter
 import markdown2
 from weasyprint import HTML
@@ -32,10 +38,17 @@ import redis
 from contextlib import contextmanager
 
 # Windows compatibility for file locking
+try:
     import fcntl
+except ImportError:
+    fcntl = None
+try:
     import msvcrt
+except ImportError:
+    msvcrt = None
 
 # Set up a logs directory and file handler for local logging
+
 
 """
 Unified PDF Processing Worker: Comprehensive worker with resume capability,
@@ -56,18 +69,9 @@ os.environ["G_MESSAGES_DEBUG"] = "none"
 os.environ["G_DEBUG"] = "fatal-warnings"
 os.environ["PYTHONWARNINGS"] = "ignore"
 
-    ThreadPoolExecutor,
-    as_completed,
-    wait,
-    FIRST_COMPLETED)
-    POLL_INTERVAL,
-    STAGING_DIR,
-    PROCESSED_DIR,
-    PAGE_MAX_WORKERS,
-    MAX_CONCURRENT_FILES,
-    MAX_CONCURRENT_WORKERS,
-    GEMINI_GLOBAL_CONCURRENCY)
+# Check for fcntl availability
 try:
+    import fcntl
     HAS_FCNTL = True
 except ImportError:
     HAS_FCNTL = False
@@ -120,7 +124,7 @@ if REDIS_URL:
         redis_client.ping()  # Test connection
         logger.info("Connected to Redis for distributed locking")
     except Exception as e:
-        logger.warning("Failed to connect to Redis: {e}. Using file-based locking.")
+        logger.warning(f"Failed to connect to Redis: {e}. Using file-based locking.")
         redis_client = None
 
 PageResult = namedtuple("PageResult", ["page_number", "markdown"])
@@ -193,11 +197,11 @@ def distributed_lock(lock_key: str, timeout: int = 300):
             # Try to acquire lock with expiration
             if redis_client.set(lock_key, lock_value, nx=True, ex=timeout):
                 lock_acquired = True
-                logger.info("Acquired Redis lock: {lock_key}")
+                logger.info(f"Acquired Redis lock: {lock_key}")
             else:
-                logger.info("Could not acquire Redis lock: {lock_key}")
+                logger.info(f"Could not acquire Redis lock: {lock_key}")
         except Exception as e:
-            logger.warning("Redis lock failed: {e}. Falling back to file lock.")
+            logger.warning(f"Redis lock failed: {e}. Falling back to file lock.")
             redis_client = None
 
     if not lock_acquired and not redis_client:
@@ -215,9 +219,9 @@ def distributed_lock(lock_key: str, timeout: int = 300):
                     msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
                 f.write(lock_value)
                 lock_acquired = True
-                logger.info("Acquired file lock: {lock_key}")
+                logger.info(f"Acquired file lock: {lock_key}")
         except (OSError, IOError):
-            logger.info("Could not acquire file lock: {lock_key}")
+            logger.info(f"Could not acquire file lock: {lock_key}")
 
     try:
         yield lock_acquired
@@ -228,9 +232,9 @@ def distributed_lock(lock_key: str, timeout: int = 300):
                     # Only release if we still own the lock
                     if redis_client.get(lock_key) == lock_value:
                         redis_client.delete(lock_key)
-                        logger.info("Released Redis lock: {lock_key}")
+                        logger.info(f"Released Redis lock: {lock_key}")
                 except Exception as e:
-                    logger.warning("Failed to release Redis lock: {e}")
+                    logger.warning(f"Failed to release Redis lock: {e}")
             else:
                 try:
                     lock_file = os.path.join(
@@ -245,9 +249,9 @@ def distributed_lock(lock_key: str, timeout: int = 300):
                             except Exception:
                                 pass  # Ignore unlock errors
                         os.remove(lock_file)
-                        logger.info("Released file lock: {lock_key}")
+                        logger.info(f"Released file lock: {lock_key}")
                 except Exception as e:
-                    logger.warning("Failed to release file lock: {e}")
+                    logger.warning(f"Failed to release file lock: {e}")
 
 def is_valid_pdf(file_path):
     """Validate PDF file integrity."""
@@ -262,7 +266,7 @@ def is_valid_pdf(file_path):
                 return False
         return True
     except Exception as e:
-    logger.error("Exception while validating PDF: {e}")
+        logger.error(f"Exception while validating PDF: {e}")
         return False
 
 def split_pdf_to_pages(pdf_path: str, pdf_dir: str) -> List[str]:
@@ -292,13 +296,13 @@ def get_pdf_page_count(pdf_path):
         reader = PdfReader(pdf_path)
         return len(reader.pages)
     except Exception as e:
-    logger.error("Could not read PDF: {e}")
+        logger.error(f"Could not read PDF: {e}")
         return 0
 
 def get_progress_file_path(file_name: str) -> str:
     """Get progress file path for a specific file."""
     safe_filename = file_name.replace("/", "_").replace("\\", "_")
-    return os.path.join(PROGRESS_DIR, "{safe_filename}_progress.json")
+    return os.path.join(PROGRESS_DIR, f"{safe_filename}_progress.json")
 
 def load_file_progress(file_name: str) -> Dict:
     """Load progress for a specific file."""
@@ -308,7 +312,7 @@ def load_file_progress(file_name: str) -> Dict:
             with open(progress_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            logger.warning("Failed to load progress for {file_name}: {e}")
+            logger.warning(f"Failed to load progress for {file_name}: {e}")
     return {
         "status": "not_started",
         "total_pages": 0,
@@ -329,7 +333,7 @@ def save_file_progress(file_name: str, progress: Dict):
         with open(progress_path, 'w', encoding='utf-8') as f:
             json.dump(progress, f, indent=2)
     except Exception as e:
-        logger.warning("Failed to save progress for {file_name}: {e}")
+        logger.warning(f"Failed to save progress for {file_name}: {e}")
 
 def cleanup_file_progress(file_name: str):
     """Clean up progress file after successful completion."""
@@ -337,9 +341,9 @@ def cleanup_file_progress(file_name: str):
     try:
         if os.path.exists(progress_path):
             os.remove(progress_path)
-            logger.info("Cleaned up progress file for {file_name}")
+            logger.info(f"Cleaned up progress file for {file_name}")
     except Exception as e:
-        logger.warning("Failed to clean up progress file for {file_name}: {e}")
+        logger.warning(f"Failed to clean up progress file for {file_name}: {e}")
 
 def ocr_page_with_retries(pdf_path, page_number, trace_id):
     """OCR a single page with per-page retries and global Gemini API throttling."""
@@ -349,8 +353,8 @@ def ocr_page_with_retries(pdf_path, page_number, trace_id):
                 markdown = gemini_ocr_page(pdf_path, page_number)
             return markdown
         except Exception as e:
-    logger.error("[{trace_id}] OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}")
-            log_json("ocr_error", "OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}", trace_id=trace_id)
+            logger.error(f"[{trace_id}] OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}")
+            log_json("ocr_error", f"OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}", trace_id=trace_id)
             if attempt == MAX_RETRIES:
                 return None
             time.sleep(2)  # brief backoff
@@ -360,18 +364,18 @@ def process_file_with_resume(file_name, storage_backend):
     trace_id = str(uuid.uuid4())
     lock_key = "pdf_processing:{file_name}"
 
-    logger.info("[{trace_id}] Processing file: {file_name}")
+    logger.info(f"[{trace_id}] Processing file: {file_name}")
     log_json("start_processing", "Processing file: {file_name}", trace_id=trace_id)
 
     # Try to acquire distributed lock
     with distributed_lock(lock_key, timeout=3600) as lock_acquired:
         if not lock_acquired:
-            logger.info("[{trace_id}] File {file_name} is being processed by another worker")
+            logger.info(f"[{trace_id}] File {file_name} is being processed by another worker")
             return False
 
         # Load existing progress
         progress = load_file_progress(file_name)
-        logger.info("[{trace_id}] File progress: {progress['status']} - {len(progress['completed_pages'])}/{progress['total_pages']} pages completed")
+        logger.info(f"[{trace_id}] File progress: {progress['status']} - {len(progress['completed_pages'])}/{progress['total_pages']} pages completed")
 
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -384,23 +388,23 @@ def process_file_with_resume(file_name, storage_backend):
 
                 # Download file if not already done
                 if progress["status"] == "not_started":
-                    logger.info("[{trace_id}] Downloading file to {temp_dir}")
+                    logger.info(f"[{trace_id}] Downloading file to {temp_dir}")
                     local_pdf = (
                         os.path.join(temp_dir, os.path.basename(file_name)))
                     if not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
-                        logger.error("[{trace_id}] Failed to download {file_name}")
+                        logger.error(f"[{trace_id}] Failed to download {file_name}")
                         return False
 
                     # Validate PDF
                     if not is_valid_pdf(local_pdf):
-                        logger.error("[{trace_id}] Invalid PDF file: {file_name}")
+                        logger.error(f"[{trace_id}] Invalid PDF file: {file_name}")
                         log_dead_letter(file_name, "Invalid PDF file", trace_id=trace_id)
                         return False
 
                     # Split PDF and update progress
-                    logger.info("[{trace_id}] Splitting PDF into pages...")
+                    logger.info(f"[{trace_id}] Splitting PDF into pages...")
                     page_files = split_pdf_to_pages(local_pdf, pdf_dir)
-                    logger.info("[{trace_id}] Split into {len(page_files)} pages")
+                    logger.info(f"[{trace_id}] Split into {len(page_files)} pages")
 
                     progress["status"] = "splitting_complete"
                     progress["total_pages"] = len(page_files)
@@ -408,16 +412,16 @@ def process_file_with_resume(file_name, storage_backend):
                     save_file_progress(file_name, progress)
                 else:
                     # Resume from existing progress
-                    logger.info("[{trace_id}] Resuming from existing progress")
+                    logger.info(f"[{trace_id}] Resuming from existing progress")
                     local_pdf = (
                         os.path.join(temp_dir, os.path.basename(file_name)))
                     if not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
-                        logger.error("[{trace_id}] Failed to download {file_name}")
+                        logger.error(f"[{trace_id}] Failed to download {file_name}")
                         return False
 
                     # Re-split PDF for processing
                     page_files = split_pdf_to_pages(local_pdf, pdf_dir)
-                    logger.info("[{trace_id}] Re-split into {len(page_files)} pages for processing")
+                    logger.info(f"[{trace_id}] Re-split into {len(page_files)} pages for processing")
 
                 # Determine which pages need processing
                 pages_to_process = []
@@ -436,7 +440,7 @@ def process_file_with_resume(file_name, storage_backend):
                             with open(cached_md_path, 'r', encoding='utf-8') as f:
                                 cached_markdown = f.read()
                             results.append(PageResult(page_number, cached_markdown))
-                            logger.info("[{trace_id}] Using cached result for page {page_number}")
+                            logger.info(f"[{trace_id}] Using cached result for page {page_number}")
                         else:
                             # Cached file missing, need to reprocess
                             pages_to_process.append((page_file, page_number))
@@ -444,15 +448,14 @@ def process_file_with_resume(file_name, storage_backend):
                         # Need to process this page
                         pages_to_process.append((page_file, page_number))
 
-                logger.info("[{trace_id}] Need to process {len(pages_to_process)} pages (out of {len(page_files)})")
+                logger.info(f"[{trace_id}] Need to process {len(pages_to_process)} pages (out of {len(page_files)})")
 
                 if pages_to_process:
                     # Process remaining pages in parallel
-                    logger.info("[{trace_id}] Processing {len(pages_to_process)} pages in parallel...")
+                    logger.info(f"[{trace_id}] Processing {len(pages_to_process)} pages in parallel...")
                     with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
                         futures = {
-                            executor.submit(ocr_page_with_retries, pf, pn, trace_id): (
-    pn, pf)
+                            executor.submit(ocr_page_with_retries, pf, pn, trace_id): (pn, pf)
                             for pf, pn in pages_to_process
                         }
                         for future in as_completed(futures):
@@ -475,9 +478,9 @@ def process_file_with_resume(file_name, storage_backend):
                                 progress["completed_pages"].sort()
                                 save_file_progress(file_name, progress)
 
-                                logger.info("[{trace_id}] OCR for page {page_number} complete")
+                                logger.info(f"[{trace_id}] OCR for page {page_number} complete")
                             else:
-                                logger.error("[{trace_id}] OCR permanently failed for page {page_number} after {MAX_RETRIES} attempts")
+                                logger.error(f"[{trace_id}] OCR permanently failed for page {page_number} after {MAX_RETRIES} attempts")
                                 log_json("ocr_permanent_error", "OCR permanently failed for page {page_number}", trace_id=trace_id)
 
                                 # Update progress
@@ -486,10 +489,10 @@ def process_file_with_resume(file_name, storage_backend):
                                 save_file_progress(file_name, progress)
 
                 if not results:
-                    logger.error("[{trace_id}] No pages were successfully processed")
+                    logger.error(f"[{trace_id}] No pages were successfully processed")
                     return False
 
-                logger.info("[{trace_id}] Successfully processed {len(results)} pages (total: {len(page_files)})")
+                logger.info(f"[{trace_id}] Successfully processed {len(results)} pages (total: {len(page_files)})")
 
                 # Sort results by page number
                 results.sort(key=lambda x: x.page_number)
@@ -503,46 +506,46 @@ def process_file_with_resume(file_name, storage_backend):
                     try:
                         markdown_to_pdf(markdown, pdf_path, html_dir, page_number)
                         single_pdf_paths.append(pdf_path)
-                        logger.info("[{trace_id}] Markdown to PDF for page {page_number} complete")
+                        logger.info(f"[{trace_id}] Markdown to PDF for page {page_number} complete")
                     except Exception as e:
-    logger.error("[{trace_id}] Markdown to PDF failed for page {page_number}: {e}")
+                        logger.error(f"[{trace_id}] Markdown to PDF failed for page {page_number}: {e}")
 
                 # Merge PDFs
-                merged_pdf_path = os.path.join(temp_dir, "merged.pd")
+                merged_pdf_path = os.path.join(temp_dir, "merged.pdf")
                 writer = PdfWriter()
                 for pdf in single_pdf_paths:
                     try:
                         reader = PdfReader(pdf)
                         writer.add_page(reader.pages[0])
                     except Exception as e:
-    logger.error("[{trace_id}] Merging page PDF failed for {pdf}: {e}")
+                        logger.error(f"[{trace_id}] Merging page PDF failed for {pdf}: {e}")
 
                 with open(merged_pdf_path, "wb") as f:
                     writer.write(f)
 
-                logger.info("[{trace_id}] Checking merged PDF at {merged_pdf_path}")
+                logger.info(f"[{trace_id}] Checking merged PDF at {merged_pdf_path}")
                 merged_pdf_size = os.path.getsize(merged_pdf_path)
-                logger.info("[{trace_id}] Merged PDF size: {merged_pdf_size} bytes")
+                logger.info(f"[{trace_id}] Merged PDF size: {merged_pdf_size} bytes")
 
                 original_page_count = get_pdf_page_count(local_pdf)
                 output_page_count = get_pdf_page_count(merged_pdf_path)
-                logger.info("[{trace_id}] Original PDF pages: {original_page_count}, Output PDF pages: {output_page_count}")
+                logger.info(f"[{trace_id}] Original PDF pages: {original_page_count}, Output PDF pages: {output_page_count}")
 
                 if original_page_count != output_page_count:
-                    logger.warning("[{trace_id}] Page count mismatch: {original_page_count} vs {output_page_count}")
+                    logger.warning(f"[{trace_id}] Page count mismatch: {original_page_count} vs {output_page_count}")
 
                 # Update progress
                 progress["status"] = "merging_complete"
                 progress["merged_pdf_path"] = merged_pdf_path
                 save_file_progress(file_name, progress)
 
-                logger.info("[{trace_id}] Uploading merged PDF as {os.path.basename(file_name)}")
+                logger.info(f"[{trace_id}] Uploading merged PDF as {os.path.basename(file_name)}")
                 upload_result = storage_backend.upload_file(
                     merged_pdf_path, os.path.basename(file_name), trace_id=trace_id
                 )
 
                 if upload_result:
-                    logger.info("[{trace_id}] Finished processing {file_name}")
+                    logger.info(f"[{trace_id}] Finished processing {file_name}")
                     log_json("success", "Finished processing {file_name}", trace_id=trace_id)
 
                     # Clean up progress and cache files
@@ -558,16 +561,16 @@ def process_file_with_resume(file_name, storage_backend):
 
                     return True
                 else:
-                    logger.error("[{trace_id}] Upload failed for {file_name}")
+                    logger.error(f"[{trace_id}] Upload failed for {file_name}")
                     progress["status"] = "upload_failed"
                     save_file_progress(file_name, progress)
                     return False
 
         except Exception as e:
-    logger.error("[{trace_id}] Fatal error processing {file_name}: {e}")
-            log_json("fatal_error", "Fatal error processing {file_name}: {e}", trace_id=trace_id)
-            log_dead_letter(file_name, "Fatal error: {e}", trace_id=trace_id)
-            log_supabase_error("Fatal error processing {file_name}: {e}")
+            logger.error(f"[{trace_id}] Fatal error processing {file_name}: {e}")
+            log_json("fatal_error", f"Fatal error processing {file_name}: {e}", trace_id=trace_id)
+            log_dead_letter(file_name, f"Fatal error: {e}", trace_id=trace_id)
+            log_supabase_error(f"Fatal error processing {file_name}: {e}")
 
             # Update progress
             progress["status"] = "error"
@@ -597,14 +600,14 @@ def cleanup_old_files():
                     mtime = datetime.utcfromtimestamp(os.path.getmtime(fpath))
                     if mtime < cutoff:
                         os.remove(fpath)
-                        logger.info("Deleted old file: {fpath}")
+                        logger.info(f"Deleted old file: {fpath}")
                 elif os.path.isdir(fpath):
                     mtime = datetime.utcfromtimestamp(os.path.getmtime(fpath))
                     if mtime < cutoff:
                         shutil.rmtree(fpath, ignore_errors=True)
-                        logger.info("Deleted old directory: {fpath}")
+                        logger.info(f"Deleted old directory: {fpath}")
             except Exception as e:
-    logger.error("Failed to delete {fpath}: {e}")
+                logger.error(f"Failed to delete {fpath}: {e}")
 
 # Register cleanup for graceful shutdown
 _temp_dirs = []
@@ -615,14 +618,14 @@ def _cleanup_temp_dirs():
     for d in _temp_dirs:
         try:
             shutil.rmtree(d, ignore_errors=True)
-            logger.info("Cleaned up temp dir: {d}")
+            logger.info(f"Cleaned up temp dir: {d}")
         except Exception as e:
-    logger.error("Failed to clean temp dir {d}: {e}")
+            logger.error(f"Failed to clean temp dir {d}: {e}")
 
 atexit.register(_cleanup_temp_dirs)
 
 def _signal_handler(signum, frame):
-    logger.info("Received signal {signum}, cleaning up and exiting...")
+    logger.info(f"Received signal {signum}, cleaning up and exiting...")
     _cleanup_temp_dirs()
     exit(0)
 
@@ -635,11 +638,11 @@ def start_worker(storage_backend):
     completed = set()
     pending = set()
 
-    logger.info("Starting worker instance {WORKER_INSTANCE_ID}")
-    logger.info("Max concurrent files: {MAX_CONCURRENT_FILES}")
-    logger.info("Max concurrent workers: {PAGE_MAX_WORKERS}")
-    logger.info("Gemini global concurrency: {GEMINI_GLOBAL_CONCURRENCY}")
-    logger.info("Redis client: {'Connected' if redis_client else 'Not available'}")
+    logger.info(f"Starting worker instance {WORKER_INSTANCE_ID}")
+    logger.info(f"Max concurrent files: {MAX_CONCURRENT_FILES}")
+    logger.info(f"Max concurrent workers: {PAGE_MAX_WORKERS}")
+    logger.info(f"Gemini global concurrency: {GEMINI_GLOBAL_CONCURRENCY}")
+    logger.info(f"Redis client: {'Connected' if redis_client else 'Not available'}")
 
     while True:
         try:
@@ -657,7 +660,7 @@ def start_worker(storage_backend):
                 for f in new_files:
                     if f not in in_progress and f not in completed and f not in pending:
                         pending.add(f)
-                        logger.info("Added to pending queue: {f}")
+                        logger.info(f"Added to pending queue: {f}")
 
             # Start new files if we have capacity
             while len(in_progress) < MAX_CONCURRENT_FILES and pending:
@@ -667,7 +670,7 @@ def start_worker(storage_backend):
                 def _cb(future, fname=fname):
                     in_progress.remove(fname)
                     completed.add(fname)
-                    logger.info("Completed processing: {fname}")
+                    logger.info(f"Completed processing: {fname}")
 
                 executor2 = getattr(start_worker, '_executor', None)
                 if executor2 is None:
@@ -680,16 +683,16 @@ def start_worker(storage_backend):
                     process_file_with_resume, fname, storage_backend
                 )
                 future2.add_done_callback(_cb)
-                logger.info("Started processing: {fname}")
+                logger.info(f"Started processing: {fname}")
 
             # Log current status
             if in_progress or pending:
-                logger.info("Status - In progress: {len(in_progress)}, Pending: {len(pending)}, Completed: {len(completed)}")
+                logger.info(f"Status - In progress: {len(in_progress)}, Pending: {len(pending)}, Completed: {len(completed)}")
 
             time.sleep(POLL_INTERVAL)
 
         except Exception as e:
-    logger.error("Exception in main worker loop: {e}")
+            logger.error(f"Exception in main worker loop: {e}")
             time.sleep(POLL_INTERVAL)
 
 def main():
@@ -718,7 +721,7 @@ def main():
     try:
         start_worker(storage_backend)
     except Exception as e:
-    logger.error("Fatal error: {e}")
+        logger.error(f"Fatal error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
