@@ -143,7 +143,7 @@ def split_pdf_to_pages(pdf_path: str, pdf_dir: str) -> List[str]:
     for i, page in enumerate(reader.pages):
         writer = PdfWriter()
         writer.add_page(page)
-        page_path = os.path.join(pdf_dir, "page_{i+1:04d}.pdf")
+        page_path = os.path.join(pdf_dir, "page_{i+1:04d}.pd")
         with open(page_path, "wb") as f:
             writer.write(f)
         page_files.append(page_path)
@@ -268,7 +268,7 @@ def process_file(file_name):
                 markdown_pages = [r.markdown for r in results]
                 single_pdf_paths = []
                 for i, md in enumerate(markdown_pages):
-                    pdf_path = os.path.join(pdf_dir, "ocr_page_{i+1:04d}.pdf")
+                    pdf_path = os.path.join(pdf_dir, "ocr_page_{i+1:04d}.pd")
                     try:
                         markdown_to_pdf(md, pdf_path, html_dir, i+1)
                         single_pdf_paths.append(pdf_path)
@@ -284,7 +284,7 @@ def process_file(file_name):
                         reader = PdfReader(pdf)
                         writer.add_page(reader.pages[0])
                     except Exception as e:
-                        print(f"[ERROR][{trace_id}] Merging page PDF failed for {pdf}: {e}\n")
+                        print("[ERROR][{trace_id}] Merging page PDF failed for {pdf}: {e}\n")
                         logger.error("[{trace_id}] Error merging page PDF {pdf}: {e}")
                         log_json("merge_error", "Merging page PDF failed for {pdf}: {e}", trace_id=trace_id)
                 with open(merged_pdf_path, "wb") as f:

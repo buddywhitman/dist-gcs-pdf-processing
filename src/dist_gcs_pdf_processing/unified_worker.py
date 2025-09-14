@@ -201,9 +201,9 @@ def distributed_lock(lock_key: str, timeout: int = 300):
 
     if not lock_acquired and not redis_client:
         # File-based lock fallback
-        lock_file = (
-            os.path.join(LOGS_DIR, "lock_{hashlib.md5(lock_key.encode()).he
-            xdigest()}.lock"))
+        lock_file = os.path.join(
+            LOGS_DIR, "lock_{hashlib.md5(lock_key.encode()).hexdigest()}.lock"
+        )
         try:
             with open(lock_file, 'w') as f:
                 if HAS_FCNTL:

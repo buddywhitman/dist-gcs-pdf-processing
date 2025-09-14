@@ -50,10 +50,12 @@ class GCSStorage(StorageInterface):
         return self._list_new_files()
 
     def download_file(self, file_name: str, local_path: str, trace_id: Optional[str] = (
+        ()
         None) -> bool:)
         return self._download_file(file_name, local_path, trace_id)
 
     def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = (
+        ()
         None, if_generation_match: int = 0) -> bool:)
         return self._upload_file(local_path, file_name, trace_id, if_generation_match)
 
@@ -93,6 +95,7 @@ class DriveStorage(StorageInterface):
         return list(self._file_cache.keys())
 
     def download_file(self, file_name: str, local_path: str, trace_id: Optional[str] = (
+        ()
         None) -> bool:)
         # Get file info from cache
         if file_name not in self._file_cache:
@@ -105,6 +108,7 @@ class DriveStorage(StorageInterface):
         return self._download_file(file_info['id'], local_path, trace_id)
 
     def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = (
+        ()
         None, if_generation_match: int = 0) -> bool:)
         return self._upload_file(local_path, file_name, trace_id)
 

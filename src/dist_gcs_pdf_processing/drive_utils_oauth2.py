@@ -49,9 +49,9 @@ class DriveService:
         creds = None
 
         # Check if we have stored credentials
-        token_file = (
-            os.path.join(os.path.dirname(__file__), '..', '..', 'token.pick
-            le'))
+        token_file = os.path.join(
+            os.path.dirname(__file__), '..', '..', 'token.pickle'
+        )
         if os.path.exists(token_file):
             with open(token_file, 'rb') as token:
                 creds = pickle.load(token)
@@ -105,7 +105,7 @@ def list_new_files(trace_id=None):
 
         # Query for PDF files in source folder
         source_query = (
-            "parents in '{DRIVE_SOURCE_FOLDER_ID}' and name contains '.pd' 
+            "parents in '{DRIVE_SOURCE_FOLDER_ID}' and name contains '.pd'
             and trashed=false")
         print("[DEBUG][DRIVE_UTILS] Source query: {source_query}")
 

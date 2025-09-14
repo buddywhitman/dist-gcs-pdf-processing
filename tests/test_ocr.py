@@ -1,41 +1,52 @@
 import os
-import base64
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
 from dist_gcs_pdf_processing.ocr import gemini_ocr_page
 import tempfile
+
 
 @patch("dist_gcs_pdf_processing.ocr.requests.post")
 def test_gemini_ocr_page_success(mock_post):
     # Simulate Gemini API returning markdown
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.raise_for_status = lambda: None
-    mock_post.return_value.json.return_value = {
-        "candidates": [
-            {"content": {"parts": [{"text": "# Markdown output"}]}}
-        ]
+    mock_response = mock_post.return_value
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "candidates": [{
+            "content": {
+                "parts": [{"text": "# Test Document\n\nThis is a test."}]
+            }
+        }]
     }
-    fd, path = tempfile.mkstemp(suffix=".pd")
-    try:
-        with os.fdopen(fd, "wb") as f:
-            f.write(b"%PDF-1.4\n%EOF")
-        result = gemini_ocr_page(path, 1)
-        assert "Markdown output" in result
-    finally:
-        os.remove(path)
+    
+    # Test with a temporary PDF file
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+        tmp_file.write(b"fake pdf content")
+        tmp_file.flush()
+        
+        result = gemini_ocr_page(tmp_file.name, "test_trace")
+        
+        # Clean up
+        os.unlink(tmp_file.name)
+    
+    assert result == "# Test Document\n\nThis is a test."
+    mock_post.assert_called_once()
+
 
 @patch("dist_gcs_pdf_processing.ocr.requests.post")
-def test_gemini_ocr_page_error(mock_post):
-    # Simulate Gemini API error response
-    mock_post.return_value.status_code = 400
-    mock_post.return_value.raise_for_status.side_effect = (
-        Exception("API error"))
-    fd, path = tempfile.mkstemp(suffix=".pd")
-    try:
-        with os.fdopen(fd, "wb") as f:
-            f.write(b"%PDF-1.4\n%EOF")
-        try:
-            gemini_ocr_page(path, 1)
-        except Exception as e:
-            assert "API error" in str(e)
-    finally:
-        os.remove(path)
+def test_gemini_ocr_page_failure(mock_post):
+    # Simulate API failure
+    mock_response = mock_post.return_value
+    mock_response.status_code = 500
+    mock_response.raise_for_status.side_effect = Exception("API Error")
+    
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+        tmp_file.write(b"fake pdf content")
+        tmp_file.flush()
+        
+        result = gemini_ocr_page(tmp_file.name, "test_trace")
+        
+        # Clean up
+        os.unlink(tmp_file.name)
+    
+    assert result is None
+    mock_post.assert_called_once()

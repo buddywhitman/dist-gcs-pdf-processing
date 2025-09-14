@@ -101,7 +101,7 @@ async def process_file(request: Request):
     file_path = body.get("file_path")
     if not file_path:
         raise HTTPException(status_code=400, detail="file_path is required")
-    
+
     # Process the file
     handle_gcs_event([file_path])
     return {"status": "processing started", "file": file_path}

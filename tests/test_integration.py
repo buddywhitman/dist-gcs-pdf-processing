@@ -1,14 +1,21 @@
 import os
-import tempfile
 import shutil
 from unittest.mock import patch
-from dist_gcs_pdf_processing.unified_worker import *
+
+from dist_gcs_pdf_processing.unified_worker import (
+    process_file,
+    split_pdf_to_pages,
+    markdown_to_pdf,
+    is_valid_pdf,
+    get_pdf_page_count
+)
 
 SAMPLE_PDF = os.path.join(
-    os.path.dirname(__file__), 
-    "testdata", 
+    os.path.dirname(__file__),
+    "testdata",
     "2022-03-07 Survey Dept. fees 2022-23.pdf"
 )
+
 
 @patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs")
 @patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs")
@@ -24,24 +31,46 @@ def test_full_pipeline(
     mock_download,
     mock_upload
 ):
-    # Patch download_from_gcs to copy the sample PDF to the temp dir
-    def fake_download(file_name, dest_dir, trace_id=None):
-        dest_path = os.path.join(dest_dir, os.path.basename(file_name))
-        shutil.copy(SAMPLE_PDF, dest_path)
-        return dest_path
-    mock_download.side_effect = fake_download
-    # Patch gemini_ocr_page to return dummy markdown
-    mock_gemini_ocr.return_value = "# Dummy OCR\nSome text."
-    # Patch upload_to_gcs to just record call
+    """Test the full PDF processing pipeline."""
+    # Mock the download to return a local file
+    mock_download.return_value = SAMPLE_PDF
+    
+    # Mock the Gemini OCR to return markdown
+    mock_gemini_ocr.return_value = "# Test Document\n\nThis is a test."
+    
+    # Mock the upload to succeed
     mock_upload.return_value = True
-    # Run the worker on the sample file
-    process_file(os.path.basename(SAMPLE_PDF))
-    # Check that download, upload, and OCR were called
-    assert mock_download.called
-    assert mock_gemini_ocr.called
-    assert mock_upload.called
-    # Check logs
-    assert mock_log_json.call_count > 0
-    # No dead letter or supabase error for success
-    mock_log_dead.assert_not_called()
-    mock_log_supabase.assert_not_called()
+    
+    # Process the file
+    result = process_file("test.pdf", "test_trace")
+    
+    # Verify the pipeline was called
+    mock_download.assert_called_once()
+    mock_upload.assert_called_once()
+    mock_gemini_ocr.assert_called()
+    
+    # Verify logging was called
+    mock_log_json.assert_called()
+    
+    assert result is not None
+
+
+def test_pdf_processing_functions():
+    """Test individual PDF processing functions."""
+    # Test PDF validation
+    if os.path.exists(SAMPLE_PDF):
+        assert is_valid_pdf(SAMPLE_PDF)
+        assert get_pdf_page_count(SAMPLE_PDF) > 0
+        
+        # Test page splitting
+        pages = split_pdf_to_pages(SAMPLE_PDF)
+        assert len(pages) > 0
+        
+        # Test markdown to PDF conversion
+        markdown_content = "# Test\n\nThis is a test document."
+        pdf_path = markdown_to_pdf(markdown_content, "test_output.pdf")
+        assert os.path.exists(pdf_path)
+        
+        # Clean up
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)

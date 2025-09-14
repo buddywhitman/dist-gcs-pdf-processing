@@ -11,8 +11,9 @@ GEMINI_PROMPT = os.getenv("GEMINI_PROMPT")
 
 # Placeholder Gemini API endpoint (replace with actual endpoint)
 GEMINI_API_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro
-    :generateContent")
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "gemini-1.5-pro:generateContent"
+)
 
 def process_pdf(pdf_path):
     with open(pdf_path, "rb") as f:

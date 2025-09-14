@@ -39,12 +39,12 @@ def load_env_and_credentials():
         print("[DEBUG] File exists: {os.path.exists(gcs_creds_path_fixed)}")
     else:
         # Try default GCS credentials file
-        default_gcs_creds = (
-            os.path.join(base_dir, 'secrets', 'dcpr-ai-80688-7aa4df1a1327.j
-            son'))
-        cwd_default_gcs_creds = (
-            os.path.join(os.getcwd(), 'secrets', 'dcpr-ai-80688-7aa4df1a132
-            7.json'))
+        default_gcs_creds = os.path.join(
+            base_dir, 'secrets', 'dcpr-ai-80688-7aa4df1a1327.json'
+        )
+        cwd_default_gcs_creds = os.path.join(
+            os.getcwd(), 'secrets', 'dcpr-ai-80688-7aa4df1a1327.json'
+        )
 
         if os.path.exists(default_gcs_creds):
             os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = default_gcs_creds

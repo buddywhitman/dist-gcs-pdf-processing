@@ -53,9 +53,9 @@ def test_merge_pdf_pages(sample_pdf):
         assert get_pdf_page_count(merged_path) == 3
 
 SAMPLE_PDF = os.path.join(
-    os.path.dirname(__file__), 
-    "testdata", 
-    "2022-03-07 Survey Dept. fees 2022-23.pdf"
+    os.path.dirname(__file__),
+    "testdata",
+    "2022-03-07 Survey Dept. fees 2022-23.pd"
 )
 
 @pytest.fixture
@@ -181,7 +181,7 @@ def test_file_level_concurrency():
     # Use all PDFs in testdata as the mock source bucket
     testdata_dir = os.path.join(os.path.dirname(__file__), "testdata")
     files = (
-        [os.path.basename(f) for f in glob.glob(os.path.join(testdata_dir, 
+        [os.path.basename(f) for f in glob.glob(os.path.join(testdata_dir,
         "*.pd"))])
     processed = []
     concurrent_counts = []
@@ -221,9 +221,10 @@ def test_file_level_concurrency():
     assert set(processed) == set(files)
     assert all(c <= worker_mod.MAX_CONCURRENT_FILES for c in concurrent_counts)
     # Clean up any generated output files (not source PDFs)
-    output_dirs = (
-        [os.path.join(os.path.dirname(__file__), d) for d in ["../logs", ".
-        ./src/processed", "../src/staging"]])
+    output_dirs = [
+        os.path.join(os.path.dirname(__file__), d)
+        for d in ["../logs", "../src/processed", "../src/staging"]
+    ]
     for d in output_dirs:
         if os.path.exists(d):
             for f in os.listdir(d):
