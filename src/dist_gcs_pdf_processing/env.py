@@ -72,9 +72,9 @@ def load_env_and_credentials():
         # Try default Drive credentials file
         default_drive_creds = (
             os.path.join(base_dir, 'secrets', 'drive-service-account.json'))
-        cwd_default_drive_creds = (
-            os.path.join(os.getcwd(), 'secrets', 'drive-service-account.jso
-            n'))
+        cwd_default_drive_creds = os.path.join(
+            os.getcwd(), 'secrets', 'drive-service-account.json'
+        )
 
         if os.path.exists(default_drive_creds):
             os.environ['GOOGLE_DRIVE_CREDENTIALS'] = default_drive_creds

@@ -55,8 +55,7 @@ import concurrent.futures
 
 # FILES_PROCESSED = Counter("files_processed_total", "Total files processed")
 # PAGES_PROCESSED = Counter("pages_processed_total", "Total pages processed")
-# PROCESSING_TIME = (
-    Histogram("file_processing_seconds", "Time spent processing files"))
+# PROCESSING_TIME = Histogram("file_processing_seconds", "Time spent processing files")
 
 # redis_client = redis.Redis.from_url(REDIS_URL) if REDIS_URL else None
 
@@ -143,7 +142,7 @@ def split_pdf_to_pages(pdf_path: str, pdf_dir: str) -> List[str]:
     for i, page in enumerate(reader.pages):
         writer = PdfWriter()
         writer.add_page(page)
-        page_path = os.path.join(pdf_dir, "page_{i+1:04d}.pd")
+        page_path = os.path.join(pdf_dir, f"page_{i+1:04d}.pdf")
         with open(page_path, "wb") as f:
             writer.write(f)
         page_files.append(page_path)
@@ -268,7 +267,7 @@ def process_file(file_name):
                 markdown_pages = [r.markdown for r in results]
                 single_pdf_paths = []
                 for i, md in enumerate(markdown_pages):
-                    pdf_path = os.path.join(pdf_dir, "ocr_page_{i+1:04d}.pd")
+                    pdf_path = os.path.join(pdf_dir, f"ocr_page_{i+1:04d}.pdf")
                     try:
                         markdown_to_pdf(md, pdf_path, html_dir, i+1)
                         single_pdf_paths.append(pdf_path)
@@ -277,7 +276,7 @@ def process_file(file_name):
                         print("[ERROR][{trace_id}] Markdown to PDF failed for page {i+1}: {e}\n")
                         logger.error("[{trace_id}] Error converting markdown to PDF for page {i+1}: {e}")
                         log_json("markdown_to_pdf_error", "Markdown to PDF failed for page {i+1}: {e}", trace_id=trace_id)
-                merged_pdf_path = os.path.join(temp_dir, "merged.pd")
+                merged_pdf_path = os.path.join(temp_dir, "merged.pdf")
                 writer = PdfWriter()
                 for pdf in single_pdf_paths:
                     try:
@@ -399,7 +398,7 @@ def handle_gcs_event(event_files):
                 try:
                     future.result()
                 except Exception as e:
-                    print("Error processing file: {e}")
+                    print(f"Error processing file: {e}")
 
 def cleanup_old_files():
     now = datetime.utcnow()

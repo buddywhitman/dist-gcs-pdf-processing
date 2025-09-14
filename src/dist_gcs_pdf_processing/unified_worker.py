@@ -232,9 +232,9 @@ def distributed_lock(lock_key: str, timeout: int = 300):
                     logger.warning("Failed to release Redis lock: {e}")
             else:
                 try:
-                    lock_file = (
-                        os.path.join(LOGS_DIR, "lock_{hashlib.md5(lock_key.
-                        encode()).hexdigest()}.lock"))
+                    lock_file = os.path.join(
+                        LOGS_DIR, f"lock_{hashlib.md5(lock_key.encode()).hexdigest()}.lock"
+                    )
                     if os.path.exists(lock_file):
                         # Release Windows lock if needed
                         if not HAS_FCNTL:

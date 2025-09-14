@@ -55,7 +55,7 @@ def test_merge_pdf_pages(sample_pdf):
 SAMPLE_PDF = os.path.join(
     os.path.dirname(__file__),
     "testdata",
-    "2022-03-07 Survey Dept. fees 2022-23.pd"
+    "2022-03-07 Survey Dept. fees 2022-23.pdf"
 )
 
 @pytest.fixture
@@ -182,7 +182,7 @@ def test_file_level_concurrency():
     testdata_dir = os.path.join(os.path.dirname(__file__), "testdata")
     files = (
         [os.path.basename(f) for f in glob.glob(os.path.join(testdata_dir,
-        "*.pd"))])
+        "*.pdf"))])
     processed = []
     concurrent_counts = []
     lock = threading.Lock()
