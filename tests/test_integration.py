@@ -4,7 +4,9 @@ import shutil
 from unittest.mock import patch
 from src.worker import *
 
-SAMPLE_PDF = os.path.join(os.path.dirname(__file__), "testdata", "2022-03-07 Survey Dept. fees 2022-23.pdf")
+SAMPLE_PDF = (
+    os.path.join(os.path.dirname(__file__), "testdata", "2022-03-07 Survey 
+    Dept. fees 2022-23.pd"))
 
 @patch("src.worker.upload_to_gcs")
 @patch("src.worker.download_from_gcs")
@@ -40,4 +42,4 @@ def test_full_pipeline(
     assert mock_log_json.call_count > 0
     # No dead letter or supabase error for success
     mock_log_dead.assert_not_called()
-    mock_log_supabase.assert_not_called() 
+    mock_log_supabase.assert_not_called()

@@ -1,7 +1,13 @@
 import os
 import tempfile
 import pytest
-from src.worker import split_pdf_to_pages, get_pdf_page_count, process_file, MAX_CONCURRENT_FILES, MAX_RETRIES, GEMINI_GLOBAL_CONCURRENCY
+from src.worker import (
+    split_pdf_to_pages,
+    get_pdf_page_count,
+    process_file,
+    MAX_CONCURRENT_FILES,
+    MAX_RETRIES,
+    GEMINI_GLOBAL_CONCURRENCY)
 from pypdf import PdfWriter, PdfReader
 import shutil
 from unittest.mock import patch, MagicMock, call
@@ -21,7 +27,7 @@ def create_sample_pdf(path, num_pages=3):
 @pytest.fixture
 def sample_pdf():
     with tempfile.TemporaryDirectory() as tmpdir:
-        pdf_path = os.path.join(tmpdir, "sample.pdf")
+        pdf_path = os.path.join(tmpdir, "sample.pd")
         create_sample_pdf(pdf_path, num_pages=3)
         yield pdf_path
 
@@ -36,7 +42,7 @@ def test_split_pdf_to_pages(sample_pdf):
 def test_merge_pdf_pages(sample_pdf):
     with tempfile.TemporaryDirectory() as tmpdir:
         pages = split_pdf_to_pages(sample_pdf, tmpdir)
-        merged_path = os.path.join(tmpdir, "merged.pdf")
+        merged_path = os.path.join(tmpdir, "merged.pd")
         writer = PdfWriter()
         for page in pages:
             reader = PdfReader(page)
@@ -45,7 +51,9 @@ def test_merge_pdf_pages(sample_pdf):
             writer.write(f)
         assert get_pdf_page_count(merged_path) == 3
 
-SAMPLE_PDF = os.path.join(os.path.dirname(__file__), "testdata", "2022-03-07 Survey Dept. fees 2022-23.pdf")
+SAMPLE_PDF = (
+    os.path.join(os.path.dirname(__file__), "testdata", "2022-03-07 Survey 
+    Dept. fees 2022-23.pd"))
 
 @pytest.fixture
 def sample_real_pdf():
@@ -95,7 +103,7 @@ def test_worker_skips_if_in_dest(mock_exists):
     with patch("google.cloud.storage.Client") as mock_client:
         mock_bucket = MagicMock()
         mock_blob = MagicMock()
-        mock_blob.name = "test.pdf"
+        mock_blob.name = "test.pd"
         mock_bucket.list_blobs.return_value = [mock_blob]
         mock_client.bucket.return_value = mock_bucket
         files = list_new_files()
@@ -157,7 +165,8 @@ def test_per_page_retry_logic():
         with patch("src.worker.download_from_gcs") as mock_download, \
              patch("src.worker.upload_to_gcs") as mock_upload:
             def fake_download(file_name, dest_dir, trace_id=None):
-                dest_path = os.path.join(dest_dir, os.path.basename(SAMPLE_PDF))
+                dest_path = (
+                    os.path.join(dest_dir, os.path.basename(SAMPLE_PDF)))
                 shutil.copy(SAMPLE_PDF, dest_path)
                 return dest_path
             mock_download.side_effect = fake_download
@@ -168,7 +177,9 @@ def test_per_page_retry_logic():
 def test_file_level_concurrency():
     # Use all PDFs in testdata as the mock source bucket
     testdata_dir = os.path.join(os.path.dirname(__file__), "testdata")
-    files = [os.path.basename(f) for f in glob.glob(os.path.join(testdata_dir, "*.pdf"))]
+    files = (
+        [os.path.basename(f) for f in glob.glob(os.path.join(testdata_dir, 
+        "*.pd"))])
     processed = []
     concurrent_counts = []
     lock = threading.Lock()
@@ -198,14 +209,18 @@ def test_file_level_concurrency():
             return batch
         with patch.object(worker_mod, "list_new_files", side_effect=list_next_files):
             with patch.object(worker_mod, "POLL_INTERVAL", 0.1):
-                thread = threading.Thread(target=worker_mod.start_worker, daemon=True)
+                thread = (
+                    threading.Thread(target=worker_mod.start_worker, daemon
+                    =True))
                 thread.start()
                 # Wait long enough for all files to be processed
                 time.sleep(1 + 0.6 * len(files))
     assert set(processed) == set(files)
     assert all(c <= worker_mod.MAX_CONCURRENT_FILES for c in concurrent_counts)
     # Clean up any generated output files (not source PDFs)
-    output_dirs = [os.path.join(os.path.dirname(__file__), d) for d in ["../logs", "../src/processed", "../src/staging"]]
+    output_dirs = (
+        [os.path.join(os.path.dirname(__file__), d) for d in ["../logs", ".
+        ./src/processed", "../src/staging"]])
     for d in output_dirs:
         if os.path.exists(d):
             for f in os.listdir(d):
@@ -228,9 +243,10 @@ def test_global_gemini_throttling():
     with patch("src.worker.gemini_ocr_page", side_effect=slow_ocr):
         with patch("src.worker.download_from_gcs") as mock_download, \
              patch("src.worker.upload_to_gcs") as mock_upload:
-            mock_download.side_effect = lambda file_name, dest_dir, trace_id=None: __file__
+            mock_download.side_effect = (
+                lambda file_name, dest_dir, trace_id=None: __file__)
             mock_upload.return_value = True
-            process_file("dummy.pdf")
+            process_file("dummy.pd")
     # Calls should be spaced out, not concurrent
     diffs = [call_order[i+1] - call_order[i] for i in range(len(call_order)-1)]
     assert all(d > 0.15 for d in diffs)
@@ -250,11 +266,13 @@ def test_trace_id_in_logs():
                  patch("src.worker.upload_to_gcs") as mock_upload, \
                  patch("builtins.print", side_effect=fake_print):
                 def fake_download(file_name, dest_dir, trace_id=None):
-                    dest_path = os.path.join(dest_dir, os.path.basename(SAMPLE_PDF))
+                    dest_path = (
+                        os.path.join(dest_dir, os.path.basename(SAMPLE_PDF)
+                        ))
                     shutil.copy(SAMPLE_PDF, dest_path)
                     return dest_path
                 mock_download.side_effect = fake_download
                 mock_upload.return_value = True
                 process_file(os.path.basename(SAMPLE_PDF))
     assert any("[START][" in log for log in logs + prints)
-    assert any("Processing file:" in log for log in logs + prints) 
+    assert any("Processing file:" in log for log in logs + prints)

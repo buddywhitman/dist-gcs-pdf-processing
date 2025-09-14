@@ -14,7 +14,7 @@ def test_gemini_ocr_page_success(mock_post):
             {"content": {"parts": [{"text": "# Markdown output"}]}}
         ]
     }
-    fd, path = tempfile.mkstemp(suffix=".pdf")
+    fd, path = tempfile.mkstemp(suffix=".pd")
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(b"%PDF-1.4\n%EOF")
@@ -27,8 +27,9 @@ def test_gemini_ocr_page_success(mock_post):
 def test_gemini_ocr_page_error(mock_post):
     # Simulate Gemini API error response
     mock_post.return_value.status_code = 400
-    mock_post.return_value.raise_for_status.side_effect = Exception("API error")
-    fd, path = tempfile.mkstemp(suffix=".pdf")
+    mock_post.return_value.raise_for_status.side_effect = (
+        Exception("API error"))
+    fd, path = tempfile.mkstemp(suffix=".pd")
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(b"%PDF-1.4\n%EOF")
@@ -37,4 +38,4 @@ def test_gemini_ocr_page_error(mock_post):
         except Exception as e:
             assert "API error" in str(e)
     finally:
-        os.remove(path) 
+        os.remove(path)

@@ -4,7 +4,12 @@ import concurrent.futures
 import logging
 from google.cloud import storage
 from google.api_core.exceptions import NotFound
-from .config import GCS_BUCKET, GCS_SOURCE_PREFIX, GCS_DEST_PREFIX, STAGING_DIR, PROCESSED_DIR
+from .config import (
+    GCS_BUCKET,
+    GCS_SOURCE_PREFIX,
+    GCS_DEST_PREFIX,
+    STAGING_DIR,
+    PROCESSED_DIR)
 from .shared import GCS_LIMITER
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
@@ -27,10 +32,10 @@ def file_exists_in_dest(file_name, trace_id=None):
         exists = bucket.blob(dest_blob_name).exists()
         elapsed = time.time() - start
         if elapsed > 10:
-            print(f"[WARNING] GCS existence check for {file_name} took {elapsed:.2f} seconds!")
+            print("[WARNING] GCS existence check for {file_name} took {elapsed:.2f} seconds!")
         return exists
     except Exception as e:
-        print(f"[FATAL][GCS_UTILS] Exception in file_exists_in_dest: {e}")
+        print("[FATAL][GCS_UTILS] Exception in file_exists_in_dest: {e}")
         return False
 
 def list_new_files(trace_id=None):
@@ -40,21 +45,25 @@ def list_new_files(trace_id=None):
         blobs = list(bucket.list_blobs(prefix=GCS_SOURCE_PREFIX))
         dest_bucket = storage_client.bucket(GCS_BUCKET)
         dest_blobs = list(dest_bucket.list_blobs(prefix=GCS_DEST_PREFIX))
-        dest_files = set(blob.name for blob in dest_blobs if blob.name.lower().endswith('.pdf'))
+        dest_files = (
+            set(blob.name for blob in dest_blobs if blob.name.lower().endsw
+            ith('.pd')))
         new_files = []
         for blob in blobs:
             if blob.name.lower().endswith('.pdf'):
-                dest_path = blob.name.replace(GCS_SOURCE_PREFIX, GCS_DEST_PREFIX, 1)
+                dest_path = (
+                    blob.name.replace(GCS_SOURCE_PREFIX, GCS_DEST_PREFIX, 1
+                    ))
                 if dest_path not in dest_files:
                     new_files.append(blob.name)
         if new_files:
-            logger.info(f"New files to process: {new_files}")
+            logger.info("New files to process: {new_files}")
         else:
             logger.info("No new files to process.")
         return new_files
     except Exception as e:
-        print(f"[FATAL][GCS_UTILS] Exception in list_new_files: {e}")
-        logger.error(f"[GCS_UTILS] Exception in list_new_files: {e}")
+        print("[FATAL][GCS_UTILS] Exception in list_new_files: {e}")
+        logger.error("[GCS_UTILS] Exception in list_new_files: {e}")
         raise
 
 def download_from_gcs(file_name, dest_dir, trace_id=None):
@@ -67,14 +76,15 @@ def download_from_gcs(file_name, dest_dir, trace_id=None):
         blob.download_to_filename(local_path)
         return local_path
     except Exception as e:
-        print(f"[FATAL][GCS_UTILS] Exception in download_from_gcs: {e}")
+        print("[FATAL][GCS_UTILS] Exception in download_from_gcs: {e}")
         raise
 
 def upload_to_gcs(file_path, dest_name=None, trace_id=None, if_generation_match=None):
     GCS_LIMITER.acquire()
     storage_client = storage.Client()
     bucket = storage_client.bucket(GCS_BUCKET)
-    dest_blob_name = gcs_path(GCS_DEST_PREFIX, dest_name or os.path.basename(file_path))
+    dest_blob_name = (
+        gcs_path(GCS_DEST_PREFIX, dest_name or os.path.basename(file_path)))
     blob = bucket.blob(dest_blob_name)
     if if_generation_match is not None:
         blob.upload_from_filename(file_path, if_generation_match=if_generation_match)
@@ -91,4 +101,4 @@ def batch_file_exists_in_dest(file_names):
     for blob in bucket.list_blobs(prefix=GCS_DEST_PREFIX):
         dest_blobs.add(os.path.basename(blob.name))
     results = {fn: (fn in dest_blobs) for fn in file_names}
-    return results 
+    return results

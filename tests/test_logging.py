@@ -19,7 +19,7 @@ def test_log_json():
 
 def test_log_dead_letter():
     with tempfile.TemporaryDirectory() as tmpdir:
-        log_dead_letter("file.pdf", "err", trace_id="abc", extra={"bar": 2})
+        log_dead_letter("file.pd", "err", trace_id="abc", extra={"bar": 2})
         # log_dead_letter always writes to DEAD_LETTER_DIR, so just check file exists
         # (could patch DEAD_LETTER_DIR for more isolation)
         # For now, just check the file is created
@@ -30,4 +30,4 @@ def test_log_supabase_error(mock_post):
     mock_post.return_value.status_code = 201
     mock_post.return_value.raise_for_status = lambda: None
     log_supabase_error("errormsg", created_time="2024-01-01T00:00:00Z")
-    assert mock_post.called 
+    assert mock_post.called

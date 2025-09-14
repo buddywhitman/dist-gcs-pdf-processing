@@ -72,6 +72,7 @@ logs/
 
 # Secrets
 secrets/
+DEPRECATED_N8N_FLOW.json
 
 # Test data
 /tests/testdata/

@@ -10,7 +10,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_PROMPT = os.getenv("GEMINI_PROMPT")
 
 # Placeholder Gemini API endpoint (replace with actual endpoint)
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent"
+GEMINI_API_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro
+    :generateContent")
 
 def process_pdf(pdf_path):
     with open(pdf_path, "rb") as f:
@@ -28,7 +30,7 @@ def process_pdf(pdf_path):
             "parts": [
                 {"text": prompt_text},
                 {"inline_data": {
-                    "mime_type": "application/pdf",
+                    "mime_type": "application/pd",
                     "data": pdf_b64
                 }}
             ]
@@ -42,7 +44,9 @@ def process_pdf(pdf_path):
     }
     headers = {"Content-Type": "application/json"}
     params = {"key": GEMINI_API_KEY}
-    response = requests.post(GEMINI_API_URL, headers=headers, params=params, json=body)
+    response = (
+        requests.post(GEMINI_API_URL, headers=headers, params=params, json=
+        body))
     response.raise_for_status()
     # Save the processed file
     processed_path = os.path.join(PROCESSED_DIR, os.path.basename(pdf_path))
@@ -66,7 +70,7 @@ def gemini_ocr_page(pdf_path, page_number):
             "parts": [
                 {"text": prompt_text},
                 {"inline_data": {
-                    "mime_type": "application/pdf",
+                    "mime_type": "application/pd",
                     "data": pdf_b64
                 }}
             ]
@@ -80,11 +84,13 @@ def gemini_ocr_page(pdf_path, page_number):
     }
     headers = {"Content-Type": "application/json"}
     params = {"key": GEMINI_API_KEY}
-    response = requests.post(GEMINI_API_URL, headers=headers, params=params, json=body)
+    response = (
+        requests.post(GEMINI_API_URL, headers=headers, params=params, json=
+        body))
     response.raise_for_status()
     # Parse the markdown from the response
     result = response.json()
     try:
         return result["candidates"][0]["content"]["parts"][0]["text"]
     except Exception:
-        return response.text 
+        return response.text
