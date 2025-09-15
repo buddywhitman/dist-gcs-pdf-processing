@@ -6,8 +6,10 @@ from dist_gcs_pdf_processing.env import load_env_and_credentials
 
 from dist_gcs_pdf_processing.worker import (
     process_file,
-    process_files
+    start_worker,
+    cleanup_old_files
 )
+from .config import MAX_CONCURRENT_FILES
 import logging
 import uvicorn
 
@@ -42,6 +44,10 @@ def health():
 @app.get("/health")
 def health_alias():
     return {"status": "ok"}
+
+def handle_gcs_event(files):
+    """Handle GCS event (placeholder)."""
+    return {"message": "GCS event received", "files": files}
 
 @app.post("/gcs-event")
 async def gcs_event(request: Request):

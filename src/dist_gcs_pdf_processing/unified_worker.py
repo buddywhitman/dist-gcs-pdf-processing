@@ -14,7 +14,9 @@ from .config import (
     DOC_BATCH_SIZE,
     PAGE_MAX_WORKERS,
     STAGING_DIR,
-    PROCESSED_DIR
+    PROCESSED_DIR,
+    GEMINI_GLOBAL_CONCURRENCY,
+    MAX_CONCURRENT_WORKERS
 )
 from pypdf import PdfReader, PdfWriter
 import markdown2
@@ -24,6 +26,7 @@ import json
 from datetime import datetime, timedelta
 import uuid
 import requests
+import os
 import threading
 import signal
 import atexit
@@ -386,8 +389,7 @@ def process_file_with_resume(file_name, storage_backend):
                     logger.info(f"[{trace_id}] Downloading file to {temp_dir}")
                     local_pdf = (
                         os.path.join(temp_dir, os.path.basename(file_name)))
-                    if
-    not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
+                    if not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
                         logger.error(f"[{trace_id}] Failed to download {file_name}")
                         return False
 
@@ -411,8 +413,7 @@ def process_file_with_resume(file_name, storage_backend):
                     logger.info(f"[{trace_id}] Resuming from existing progress")
                     local_pdf = (
                         os.path.join(temp_dir, os.path.basename(file_name)))
-                    if
-    not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
+                    if not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
                         logger.error(f"[{trace_id}] Failed to download {file_name}")
                         return False
 

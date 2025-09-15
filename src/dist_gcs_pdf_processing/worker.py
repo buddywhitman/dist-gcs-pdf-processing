@@ -26,10 +26,11 @@ import json
 from datetime import datetime, timedelta
 import uuid
 import requests
+import os
 import threading
 import signal
 import atexit
-, GEMINI_LIMITER, RateLimiter
+from .shared import GCS_LIMITER, GEMINI_LIMITER, RateLimiter
 import concurrent.futures
 
 # FILES_PROCESSED = Counter("files_processed_total", "Total files processed")

@@ -4,10 +4,13 @@ import logging
 from google.cloud import storage
 
 from .config import (
-    GCS_BUCKET_NAME,
+    GCS_BUCKET,
+    GCS_SOURCE_PREFIX,
+    GCS_DEST_PREFIX,
     STAGING_DIR,
     PROCESSED_DIR
 )
+from .shared import GCS_LIMITER
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
 load_env_and_credentials()

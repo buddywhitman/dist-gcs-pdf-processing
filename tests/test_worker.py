@@ -4,7 +4,10 @@ import pytest
 import shutil
 from dist_gcs_pdf_processing.unified_worker import (
     process_file,
-    process_files
+    process_files,
+    split_pdf_to_pages,
+    get_pdf_page_count,
+    process_file_with_resume
 )
 from pypdf import PdfWriter, PdfReader
 from unittest.mock import patch, MagicMock, call
