@@ -140,7 +140,7 @@ def log_json(event_type, message, extra=None, trace_id=None, json_dir=JSON_LOGS_
     with open(json_log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry) + "\n")
 
-def log_dead_letter(file_name, error, trace_id=None, extra=None):
+def log_dead_letter(file_name, error, trace_id=None, extra=None, dead_letter_dir=None):
     """Log failed files to dead letter queue."""
     log_entry = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -150,7 +150,9 @@ def log_dead_letter(file_name, error, trace_id=None, extra=None):
         "worker_instance": WORKER_INSTANCE_ID,
         "extra": extra or {}
     }
-    dead_letter_path = os.path.join(DEAD_LETTER_DIR, "dead_letter.log")
+    target_dir = dead_letter_dir or DEAD_LETTER_DIR
+    os.makedirs(target_dir, exist_ok=True)
+    dead_letter_path = os.path.join(target_dir, "dead_letter.log")
     with open(dead_letter_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry) + "\n")
 
@@ -188,18 +190,23 @@ def distributed_lock(lock_key: str, timeout: int = 300):
     lock_acquired = False
     lock_value = f"{WORKER_INSTANCE_ID}_{int(time.time())}"
 
-    if redis_client is not None:
-        # Redis-based distributed lock
-        try:
-            # Try to acquire lock with expiration
-            if redis_client.set(lock_key, lock_value, nx=True, ex=timeout):
-                lock_acquired = True
-                logger.info(f"Acquired Redis lock: {lock_key}")
-            else:
-                logger.info(f"Could not acquire Redis lock: {lock_key}")
-        except Exception as e:
-            logger.warning(f"Redis lock failed: {e}. Falling back to file lock.")
-            redis_client = None
+    # Check if redis_client is available and connected
+    try:
+        if redis_client is not None:
+            # Redis-based distributed lock
+            try:
+                # Try to acquire lock with expiration
+                if redis_client.set(lock_key, lock_value, nx=True, ex=timeout):
+                    lock_acquired = True
+                    logger.info(f"Acquired Redis lock: {lock_key}")
+                else:
+                    logger.info(f"Could not acquire Redis lock: {lock_key}")
+            except Exception as e:
+                logger.warning(f"Redis lock failed: {e}. Falling back to file lock.")
+                redis_client = None
+    except NameError:
+        # redis_client is not defined, use file-based locking
+        pass
 
     if not lock_acquired and not redis_client:
         # File-based lock fallback
@@ -287,6 +294,7 @@ def markdown_to_pdf(markdown: str, pdf_path: str, html_dir: str, page_num: int):
     with open(html_path, "w", encoding="utf-8") as html_file:
         html_file.write(html)
     HTML(string=html).write_pdf(pdf_path)
+    return pdf_path
 
 def get_pdf_page_count(pdf_path):
     """Get the number of pages in a PDF."""

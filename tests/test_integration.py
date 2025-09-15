@@ -71,8 +71,9 @@ def test_pdf_processing_functions():
 
         # Test markdown to PDF conversion
         markdown_content = "# Test\n\nThis is a test document."
-        pdf_path = markdown_to_pdf(markdown_content, "test_output.pdf")
-        assert os.path.exists(pdf_path)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pdf_path = markdown_to_pdf(markdown_content, "test_output.pdf", tmp_dir, 1)
+            assert os.path.exists(pdf_path)
 
         # Clean up
         if os.path.exists(pdf_path):
