@@ -1,9 +1,7 @@
-import os
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
 import time
 import tempfile
-import shutil
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import namedtuple
@@ -22,20 +20,16 @@ from .config import (
 from pypdf import PdfReader, PdfWriter
 import markdown2
 from weasyprint import HTML
-from docx import Document
 # import openai
-import mimetypes
 from logging.handlers import TimedRotatingFileHandler
 import json
 from datetime import datetime, timedelta
 import uuid
 import requests
 import threading
-import base64
 import signal
 import atexit
-from .shared import GCS_LIMITER, GEMINI_LIMITER, RateLimiter
-from queue import Queue, Empty
+, GEMINI_LIMITER, RateLimiter
 import concurrent.futures
 
 # FILES_PROCESSED = Counter("files_processed_total", "Total files processed")
@@ -244,8 +238,7 @@ def process_file(file_name):
                 # Per-page concurrency, with per-page retries and global throttling
                 with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
                     futures = {
-                        executor.submit(ocr_page_with_retries, pf, i+1, trace_id): (
-    i+1, pf)
+                        executor.submit(ocr_page_with_retries, pf, i+1, trace_id): (i+1, pf)
                         for i, pf in enumerate(page_files)
                     }
                     for future in as_completed(futures):

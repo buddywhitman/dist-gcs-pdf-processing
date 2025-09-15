@@ -8,7 +8,6 @@ from .config import (
     STAGING_DIR,
     PROCESSED_DIR
 )
-from .shared import GCS_LIMITER
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
 load_env_and_credentials()

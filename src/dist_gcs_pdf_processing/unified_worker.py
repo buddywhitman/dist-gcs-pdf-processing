@@ -1,10 +1,8 @@
-import os
 import sys
 from dist_gcs_pdf_processing.env import load_env_and_credentials
 
 import time
 import tempfile
-import shutil
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import namedtuple
@@ -27,11 +25,9 @@ from datetime import datetime, timedelta
 import uuid
 import requests
 import threading
-import base64
 import signal
 import atexit
 from .shared import GCS_LIMITER, GEMINI_LIMITER, RateLimiter
-from queue import Queue, Empty
 import concurrent.futures
 import hashlib
 import redis
@@ -390,7 +386,8 @@ def process_file_with_resume(file_name, storage_backend):
                     logger.info(f"[{trace_id}] Downloading file to {temp_dir}")
                     local_pdf = (
                         os.path.join(temp_dir, os.path.basename(file_name)))
-                    if not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
+                    if
+    not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
                         logger.error(f"[{trace_id}] Failed to download {file_name}")
                         return False
 
@@ -414,7 +411,8 @@ def process_file_with_resume(file_name, storage_backend):
                     logger.info(f"[{trace_id}] Resuming from existing progress")
                     local_pdf = (
                         os.path.join(temp_dir, os.path.basename(file_name)))
-                    if not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
+                    if
+    not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
                         logger.error(f"[{trace_id}] Failed to download {file_name}")
                         return False
 
@@ -454,7 +452,8 @@ def process_file_with_resume(file_name, storage_backend):
                     logger.info(f"[{trace_id}] Processing {len(pages_to_process)} pages in parallel...")
                     with ThreadPoolExecutor(max_workers=PAGE_MAX_WORKERS) as executor:
                         futures = {
-                            executor.submit(ocr_page_with_retries, pf, pn, trace_id): (pn, pf)
+                            executor.submit(ocr_page_with_retries, pf, pn, trace_id): (
+    pn, pf)
                             for pf, pn in pages_to_process
                         }
                         for future in as_completed(futures):

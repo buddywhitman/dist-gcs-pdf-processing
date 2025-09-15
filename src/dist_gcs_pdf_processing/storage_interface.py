@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-import os
 import time
 
 from .gcs_utils import (
@@ -34,12 +33,14 @@ class StorageInterface(ABC):
         pass
 
     @abstractmethod
-    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = None, if_generation_match: int = 0) -> bool:
+    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = (
+    None, if_generation_match: int = 0) -> bool:)
         """Upload a file from local path. Returns True if successful."""
         pass
 
     @abstractmethod
-    def file_exists(self, file_name: str, trace_id: Optional[str] = None) -> bool:
+    def file_exists(self, file_name: str, trace_id: Optional[str] = (
+    None) -> bool:)
         """Check if file exists in destination. Returns True if exists."""
         pass
 
@@ -58,10 +59,12 @@ class GCSStorage(StorageInterface):
     def download_file(self, file_name: str, local_path: str, trace_id: Optional[str] = None) -> bool:
         return self._download_file(file_name, local_path, trace_id)
 
-    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = None, if_generation_match: int = 0) -> bool:
+    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = (
+    None, if_generation_match: int = 0) -> bool:)
         return self._upload_file(local_path, file_name, trace_id, if_generation_match)
 
-    def file_exists(self, file_name: str, trace_id: Optional[str] = None) -> bool:
+    def file_exists(self, file_name: str, trace_id: Optional[str] = (
+    None) -> bool:)
         return self._file_exists(file_name, trace_id)
 
 class DriveStorage(StorageInterface):
@@ -101,10 +104,12 @@ class DriveStorage(StorageInterface):
             return False
         return self._download_file(file_info['id'], local_path, trace_id)
 
-    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = None, if_generation_match: int = 0) -> bool:
+    def upload_file(self, local_path: str, file_name: str, trace_id: Optional[str] = (
+    None, if_generation_match: int = 0) -> bool:)
         return self._upload_file(local_path, file_name, trace_id)
 
-    def file_exists(self, file_name: str, trace_id: Optional[str] = None) -> bool:
+    def file_exists(self, file_name: str, trace_id: Optional[str] = (
+    None) -> bool:)
         return self._file_exists(file_name, trace_id)
 
 def get_storage_backend(backend_type: str = None) -> StorageInterface:

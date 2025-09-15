@@ -1,6 +1,4 @@
-import os
 import tempfile
-import pytest
 
 from dist_gcs_pdf_processing.gcs_utils import (
 

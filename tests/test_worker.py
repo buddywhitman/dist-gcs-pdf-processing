@@ -1,12 +1,12 @@
 import os
 import tempfile
 import pytest
+import shutil
 from dist_gcs_pdf_processing.unified_worker import (
     process_file,
     process_files
 )
 from pypdf import PdfWriter, PdfReader
-import shutil
 from unittest.mock import patch, MagicMock, call
 from dist_gcs_pdf_processing.gcs_utils import list_new_files
 import threading

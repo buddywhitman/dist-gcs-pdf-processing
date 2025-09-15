@@ -1,10 +1,8 @@
-import os
 import time
 import logging
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 import io
 import pickle
@@ -14,7 +12,6 @@ from .config import (
     STAGING_DIR,
     PROCESSED_DIR
 )
-from .shared import DRIVE_LIMITER
 logger = logging.getLogger("dcpr.worker")
 
 # Google Drive API scopes
@@ -190,7 +187,8 @@ def download_from_drive(file_id, local_path, trace_id=None):
 
 def upload_to_drive(local_path, file_name, trace_id=None):
     """
-    Upload a file to Google Drive destination folder with chunked upload for large files.
+    Upload a file to Google Drive destination folder with chunked upload for
+    large files.
 
     Args:
         local_path: Local path of the file to upload

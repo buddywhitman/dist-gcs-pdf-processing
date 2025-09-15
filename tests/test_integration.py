@@ -1,5 +1,4 @@
 import os
-import shutil
 from unittest.mock import patch
 
 from dist_gcs_pdf_processing.unified_worker import (
