@@ -68,8 +68,8 @@ def sample_real_pdf():
 @patch("dist_gcs_pdf_processing.unified_worker.log_supabase_error")
 @patch("dist_gcs_pdf_processing.unified_worker.log_dead_letter")
 @patch("dist_gcs_pdf_processing.unified_worker.log_json")
-@patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs")
-@patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs")
+@patch("dist_gcs_pdf_processing.gcs_utils.upload_to_gcs")
+@patch("dist_gcs_pdf_processing.gcs_utils.download_from_gcs")
 @patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page")
 def test_worker_processes_pdf(
     mock_gemini_ocr,
@@ -117,8 +117,8 @@ def test_worker_skips_if_in_dest(mock_exists):
 @patch("dist_gcs_pdf_processing.unified_worker.log_supabase_error")
 @patch("dist_gcs_pdf_processing.unified_worker.log_dead_letter")
 @patch("dist_gcs_pdf_processing.unified_worker.log_json")
-@patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs")
-@patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs")
+@patch("dist_gcs_pdf_processing.gcs_utils.upload_to_gcs")
+@patch("dist_gcs_pdf_processing.gcs_utils.download_from_gcs")
 @patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page")
 def test_worker_error_handling(
     mock_gemini_ocr,
@@ -266,8 +266,8 @@ def test_trace_id_in_logs():
         prints.append(" ".join(str(a) for a in args))
     with patch("dist_gcs_pdf_processing.unified_worker.logger", new=DummyLogger()):
         with patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page", return_value="# OCR"):
-            with patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs") as mock_download, \
-                 patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs") as mock_upload, \
+            with patch("dist_gcs_pdf_processing.gcs_utils.download_from_gcs") as mock_download, \
+                 patch("dist_gcs_pdf_processing.gcs_utils.upload_to_gcs") as mock_upload, \
                  patch("builtins.print", side_effect=fake_print):
                 def fake_download(file_name, dest_dir, trace_id=None):
                     dest_path = (

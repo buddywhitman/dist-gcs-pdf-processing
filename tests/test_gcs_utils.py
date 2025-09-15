@@ -1,4 +1,5 @@
 import tempfile
+from unittest.mock import patch, MagicMock
 
 from dist_gcs_pdf_processing.gcs_utils import (
 
@@ -19,8 +20,15 @@ def test_file_exists_in_dest():
     result = file_exists_in_dest("test.pdf")
     assert isinstance(result, bool)
 
-def test_list_new_files():
+@patch("dist_gcs_pdf_processing.gcs_utils.storage.Client")
+def test_list_new_files(mock_client):
     # Mock test - in real scenario, this would list from GCS
+    mock_bucket = MagicMock()
+    mock_blob = MagicMock()
+    mock_blob.name = "test.pdf"
+    mock_bucket.list_blobs.return_value = [mock_blob]
+    mock_client.return_value.bucket.return_value = mock_bucket
+    
     files = list_new_files()
     assert isinstance(files, list)
 

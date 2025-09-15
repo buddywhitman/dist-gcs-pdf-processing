@@ -16,7 +16,8 @@ from .config import (
     STAGING_DIR,
     PROCESSED_DIR,
     GEMINI_GLOBAL_CONCURRENCY,
-    MAX_CONCURRENT_WORKERS
+    MAX_CONCURRENT_WORKERS,
+    MAX_CONCURRENT_FILES
 )
 from pypdf import PdfReader, PdfWriter
 import markdown2
@@ -27,6 +28,7 @@ from datetime import datetime, timedelta
 import uuid
 import requests
 import os
+import shutil
 import threading
 import signal
 import atexit
@@ -184,9 +186,9 @@ def log_supabase_error(error_message, created_time=None):
 def distributed_lock(lock_key: str, timeout: int = 300):
     """Distributed lock using Redis or file-based fallback."""
     lock_acquired = False
-    lock_value = "{WORKER_INSTANCE_ID}_{int(time.time())}"
+    lock_value = f"{WORKER_INSTANCE_ID}_{int(time.time())}"
 
-    if redis_client:
+    if redis_client is not None:
         # Redis-based distributed lock
         try:
             # Try to acquire lock with expiration

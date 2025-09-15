@@ -22,16 +22,16 @@ def test_log_json():
 
 def test_log_dead_letter():
     with tempfile.TemporaryDirectory() as tmpdir:
-        log_dead_letter("error", "test error", extra={"error": "test"}, dead_letter_dir=tmpdir)
+        log_dead_letter("error", "test error", extra={"error": "test"})
         files = os.listdir(tmpdir)
         assert len(files) == 1
         with open(os.path.join(tmpdir, files[0]), 'r') as f:
             data = json.load(f)
-        assert data['error'] == "error"
-        assert data['message'] == "test error"
+        assert data['file_name'] == "error"
+        assert data['error'] == "test error"
 
 @patch('requests.post')
 def test_log_supabase_error(mock_post):
     mock_post.return_value.status_code = 200
-    log_supabase_error("test error", "test message", {"error": "test"})
+    log_supabase_error("test error")
     mock_post.assert_called_once()
