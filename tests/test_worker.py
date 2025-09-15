@@ -2,16 +2,17 @@ import os
 import tempfile
 import pytest
 import shutil
+from dist_gcs_pdf_processing.worker import (
+    process_file
+)
 from dist_gcs_pdf_processing.unified_worker import (
-    process_file,
-    process_files,
     split_pdf_to_pages,
     get_pdf_page_count,
     process_file_with_resume
 )
 from pypdf import PdfWriter, PdfReader
 from unittest.mock import patch, MagicMock, call
-from dist_gcs_pdf_processing.gcs_utils import list_new_files
+from dist_gcs_pdf_processing.gcs_utils import list_new_files, download_from_gcs, upload_to_gcs
 import threading
 import time
 import io
@@ -166,8 +167,8 @@ def test_per_page_retry_logic():
             raise Exception("Temporary Gemini error!")
         return "# Success after retry"
     with patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page", side_effect=flaky_ocr):
-        with patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs") as mock_download, \
-             patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs") as mock_upload:
+        with patch("dist_gcs_pdf_processing.gcs_utils.download_from_gcs") as mock_download, \
+             patch("dist_gcs_pdf_processing.gcs_utils.upload_to_gcs") as mock_upload:
             def fake_download(file_name, dest_dir, trace_id=None):
                 dest_path = (
                     os.path.join(dest_dir, os.path.basename(SAMPLE_PDF)))
@@ -210,7 +211,7 @@ def test_file_level_concurrency():
                 batch.append(f)
                 to_process.remove(f)
             return batch
-        with patch.object(worker_mod, "list_new_files", side_effect=list_next_files):
+        with patch("dist_gcs_pdf_processing.gcs_utils.list_new_files", side_effect=list_next_files):
             with patch.object(worker_mod, "POLL_INTERVAL", 0.1):
                 thread = (
                     threading.Thread(target=worker_mod.start_worker, daemon
@@ -244,8 +245,8 @@ def test_global_gemini_throttling():
         time.sleep(0.2)
         return "# OCR"
     with patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page", side_effect=slow_ocr):
-        with patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs") as mock_download, \
-             patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs") as mock_upload:
+        with patch("dist_gcs_pdf_processing.gcs_utils.download_from_gcs") as mock_download, \
+             patch("dist_gcs_pdf_processing.gcs_utils.upload_to_gcs") as mock_upload:
             mock_download.side_effect = (
                 lambda file_name, dest_dir, trace_id=None: __file__)
             mock_upload.return_value = True

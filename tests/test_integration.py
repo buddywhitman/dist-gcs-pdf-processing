@@ -2,13 +2,13 @@ import os
 from unittest.mock import patch
 
 from dist_gcs_pdf_processing.unified_worker import (
-
     process_file_with_resume,
     split_pdf_to_pages,
     markdown_to_pdf,
     is_valid_pdf,
     get_pdf_page_count
 )
+from dist_gcs_pdf_processing.gcs_utils import download_from_gcs, upload_to_gcs
 
 SAMPLE_PDF = os.path.join(
     os.path.dirname(__file__),
@@ -16,8 +16,8 @@ SAMPLE_PDF = os.path.join(
     "2022-03-07 Survey Dept. fees 2022-23.pdf"
 )
 
-@patch("dist_gcs_pdf_processing.unified_worker.upload_to_gcs")
-@patch("dist_gcs_pdf_processing.unified_worker.download_from_gcs")
+@patch("dist_gcs_pdf_processing.gcs_utils.upload_to_gcs")
+@patch("dist_gcs_pdf_processing.gcs_utils.download_from_gcs")
 @patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page")
 @patch("dist_gcs_pdf_processing.unified_worker.log_supabase_error")
 @patch("dist_gcs_pdf_processing.unified_worker.log_dead_letter")
