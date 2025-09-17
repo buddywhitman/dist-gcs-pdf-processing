@@ -190,7 +190,7 @@ def test_file_level_concurrency():
     lock = threading.Lock()
     active = 0
     to_process = set(files)
-    def slow_process_file(file_name):
+    def slow_process_file(file_name, storage_backend=None):
         nonlocal active
         with lock:
             active += 1
@@ -200,9 +200,9 @@ def test_file_level_concurrency():
         with lock:
             active -= 1
     # Patch process_file_with_resume in the correct namespace
-    with patch.object(worker_mod, "process_file_with_resume", side_effect=slow_process_file):
+    with patch("dist_gcs_pdf_processing.unified_worker.process_file_with_resume", side_effect=slow_process_file):
         # Patch list_new_files to yield the next unprocessed files as the worker requests them
-        def list_next_files():
+        def list_next_files(self=None):
             # Always return up to MAX_CONCURRENT_FILES unprocessed files
             batch = []
             for f in list(to_process):
@@ -211,14 +211,17 @@ def test_file_level_concurrency():
                 batch.append(f)
                 to_process.remove(f)
             return batch
-        with patch("dist_gcs_pdf_processing.gcs_utils.list_new_files", side_effect=list_next_files):
-            with patch.object(worker_mod, "POLL_INTERVAL", 0.1):
-                thread = (
-                    threading.Thread(target=worker_mod.start_worker, daemon
-                    =True))
-                thread.start()
-                # Wait long enough for all files to be processed
-                time.sleep(1 + 0.6 * len(files))
+        with patch.object(worker_mod, "POLL_INTERVAL", 0.1):
+            # Create a mock storage backend
+            mock_storage_backend = type('MockStorageBackend', (), {
+                'list_new_files': list_next_files
+            })()
+            thread = (
+                threading.Thread(target=worker_mod.start_worker, args=(mock_storage_backend,), daemon
+                =True))
+            thread.start()
+            # Wait long enough for all files to be processed
+            time.sleep(1 + 0.6 * len(files))
     assert set(processed) == set(files)
     assert all(c <= worker_mod.MAX_CONCURRENT_FILES for c in concurrent_counts)
     # Clean up any generated output files (not source PDFs)

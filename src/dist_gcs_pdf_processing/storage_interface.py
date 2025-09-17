@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 import time
+import os
 
 from .gcs_utils import (
     download_from_gcs,
@@ -49,7 +50,7 @@ class GCSStorage(StorageInterface):
         self._list_new_files = gcs_list_new_files
         self._download_file = download_from_gcs
         self._upload_file = upload_to_gcs
-        self._file_exists = file_exists_in_dest
+        self._file_exists = gcs_file_exists
 
     def list_new_files(self) -> List[str]:
         return self._list_new_files()
@@ -70,7 +71,7 @@ class DriveStorage(StorageInterface):
         self._list_new_files = drive_list_new_files
         self._download_file = download_from_drive
         self._upload_file = upload_to_drive
-        self._file_exists = file_exists_in_dest
+        self._file_exists = drive_file_exists
         self._file_cache = {}  # Cache file info by name
         self._last_list_time = 0
         self._cache_ttl = 30  # Cache for 30 seconds

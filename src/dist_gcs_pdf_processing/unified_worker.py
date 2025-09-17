@@ -38,12 +38,7 @@ import hashlib
 import redis
 from contextlib import contextmanager
 
-# Windows compatibility for file locking
-try:
-    import fcntl
-except ImportError:
-    # Windows doesn't have fcntl, use msvcrt instead
-    import msvcrt
+# Windows compatibility for file locking will be handled later
 
 # Set up a logs directory and file handler for local logging
 
@@ -69,8 +64,11 @@ os.environ["PYTHONWARNINGS"] = "ignore"
 
 # Check for fcntl availability
 try:
+    import fcntl
     HAS_FCNTL = True
 except ImportError:
+    # Windows doesn't have fcntl, use msvcrt instead
+    import msvcrt
     HAS_FCNTL = False
 LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
 JSON_LOGS_DIR = os.path.join(LOGS_DIR, "json")
@@ -158,13 +156,15 @@ def log_dead_letter(file_name, error, trace_id=None, extra=None, dead_letter_dir
 
 def log_supabase_error(error_message, created_time=None):
     """Log persistent errors to Supabase."""
-    if not SUPABASE_URL or not SUPABASE_API_KEY:
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_api_key = os.getenv("SUPABASE_API_KEY")
+    if not supabase_url or not supabase_api_key:
         return
 
-    url = "{SUPABASE_URL}/rest/v1/{SUPABASE_ERROR_LOG_TABLE}"
+    url = f"{supabase_url}/rest/v1/{SUPABASE_ERROR_LOG_TABLE}"
     headers = {
-        "apikey": SUPABASE_API_KEY,
-        "Authorization": "Bearer {SUPABASE_API_KEY}",
+        "apikey": supabase_api_key,
+        "Authorization": f"Bearer {supabase_api_key}",
         "Content-Type": "application/json",
         "Prefer": "return=minimal"
     }
@@ -189,6 +189,7 @@ def distributed_lock(lock_key: str, timeout: int = 300):
     """Distributed lock using Redis or file-based fallback."""
     lock_acquired = False
     lock_value = f"{WORKER_INSTANCE_ID}_{int(time.time())}"
+    use_redis = False
 
     # Check if redis_client is available and connected
     try:
@@ -198,17 +199,18 @@ def distributed_lock(lock_key: str, timeout: int = 300):
                 # Try to acquire lock with expiration
                 if redis_client.set(lock_key, lock_value, nx=True, ex=timeout):
                     lock_acquired = True
+                    use_redis = True
                     logger.info(f"Acquired Redis lock: {lock_key}")
                 else:
                     logger.info(f"Could not acquire Redis lock: {lock_key}")
             except Exception as e:
                 logger.warning(f"Redis lock failed: {e}. Falling back to file lock.")
-                redis_client = None
+                use_redis = False
     except NameError:
         # redis_client is not defined, use file-based locking
-        pass
+        use_redis = False
 
-    if not lock_acquired and not redis_client:
+    if not lock_acquired and not use_redis:
         # File-based lock fallback
         lock_file = os.path.join(
             LOGS_DIR, "lock_{hashlib.md5(lock_key.encode()).hexdigest()}.lock"
@@ -231,7 +233,7 @@ def distributed_lock(lock_key: str, timeout: int = 300):
         yield lock_acquired
     finally:
         if lock_acquired:
-            if redis_client:
+            if use_redis and redis_client:
                 try:
                     # Only release if we still own the lock
                     if redis_client.get(lock_key) == lock_value:
@@ -261,16 +263,15 @@ def is_valid_pdf(file_path):
     """Validate PDF file integrity."""
     try:
         with open(file_path, 'rb') as f:
-            header = f.read(5)
-            if header != b'%PDF-':
+            header = f.read(10)
+            if not header.startswith(b'%PDF-'):
                 return False
-            f.seek(-5, 2)
+            f.seek(-10, 2)
             trailer = f.read()
             if b'%%EOF' not in trailer:
                 return False
         return True
     except Exception as e:
-
         logger.error(f"Exception while validating PDF: {e}")
         return False
 
@@ -290,7 +291,7 @@ def split_pdf_to_pages(pdf_path: str, pdf_dir: str) -> List[str]:
 def markdown_to_pdf(markdown: str, pdf_path: str, html_dir: str, page_num: int):
     """Convert markdown to PDF using WeasyPrint."""
     html = markdown2.markdown(markdown)
-    html_path = os.path.join(html_dir, "page_{page_num:04d}.html")
+    html_path = os.path.join(html_dir, f"page_{page_num:04d}.html")
     with open(html_path, "w", encoding="utf-8") as html_file:
         html_file.write(html)
     HTML(string=html).write_pdf(pdf_path)

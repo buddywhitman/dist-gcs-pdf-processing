@@ -1,4 +1,5 @@
 import os
+import tempfile
 from unittest.mock import patch
 
 from dist_gcs_pdf_processing.unified_worker import (
@@ -16,8 +17,6 @@ SAMPLE_PDF = os.path.join(
     "2022-03-07 Survey Dept. fees 2022-23.pdf"
 )
 
-@patch("dist_gcs_pdf_processing.gcs_utils.upload_to_gcs")
-@patch("dist_gcs_pdf_processing.gcs_utils.download_from_gcs")
 @patch("dist_gcs_pdf_processing.unified_worker.gemini_ocr_page")
 @patch("dist_gcs_pdf_processing.unified_worker.log_supabase_error")
 @patch("dist_gcs_pdf_processing.unified_worker.log_dead_letter")
@@ -26,26 +25,31 @@ def test_full_pipeline(
     mock_log_json,
     mock_log_dead,
     mock_log_supabase,
-    mock_gemini_ocr,
-    mock_download,
-    mock_upload
+    mock_gemini_ocr
 ):
     """Test the full PDF processing pipeline."""
-    # Mock the download to return a local file
-    mock_download.return_value = SAMPLE_PDF
-
     # Mock the Gemini OCR to return markdown
     mock_gemini_ocr.return_value = "# Test Document\n\nThis is a test."
 
-    # Mock the upload to succeed
-    mock_upload.return_value = True
+    # Create a mock storage backend
+    from unittest.mock import MagicMock
+    import shutil
+    mock_storage_backend = MagicMock()
+    
+    def mock_download_file(file_name, local_path, trace_id=None):
+        # Copy the sample PDF to the expected location
+        shutil.copy(SAMPLE_PDF, local_path)
+        return local_path
+    
+    mock_storage_backend.download_file.side_effect = mock_download_file
+    mock_storage_backend.upload_file.return_value = True
 
     # Process the file
-    result = process_file_with_resume("test.pdf", "test_trace")
+    result = process_file_with_resume("test.pdf", mock_storage_backend)
 
     # Verify the pipeline was called
-    mock_download.assert_called_once()
-    mock_upload.assert_called_once()
+    mock_storage_backend.download_file.assert_called_once()
+    mock_storage_backend.upload_file.assert_called_once()
     mock_gemini_ocr.assert_called()
 
     # Verify logging was called
