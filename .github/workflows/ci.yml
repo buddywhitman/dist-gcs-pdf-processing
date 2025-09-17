@@ -66,7 +66,7 @@ jobs:
       - name: Run FastAPI app with uvicorn (smoke test)
         run: |
           source .venv/bin/activate
-          nohup uvicorn src.main:app --host 127.0.0.1 --port 8000 &
+          nohup python -m uvicorn dist_gcs_pdf_processing.main:app --host 127.0.0.1 --port 8000 &
           sleep 5
           curl -f http://127.0.0.1:8000/health
           pkill -f uvicorn
