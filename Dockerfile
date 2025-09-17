@@ -1,11 +1,10 @@
 # Multi-stage build for PDF processing worker
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    software-properties-common \
     git \
     && rm -rf /var/lib/apt/lists/*
 
@@ -59,4 +58,4 @@ ENV WORKER_INSTANCE_ID=worker-1
 EXPOSE 8000
 
 # Default command
-CMD ["python", "-m", "dist_gcs_pdf_processing.unified_worker"]
+CMD ["python", "-m", "uvicorn", "dist_gcs_pdf_processing.main:app", "--host", "0.0.0.0", "--port", "8000"]
