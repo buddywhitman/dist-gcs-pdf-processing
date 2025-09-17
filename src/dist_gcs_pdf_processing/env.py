@@ -2,31 +2,39 @@ import os
 from dotenv import load_dotenv
 
 def load_env_and_credentials():
-    # Look for .env in the project root's secrets directory
+    # Look for .env in multiple locations
     # Get the project root (two levels up from this file)
     base_dir = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     )
-    dotenv_path = os.path.join(base_dir, 'secrets', '.env')
+    
+    # Try multiple .env locations in order of preference
+    dotenv_paths = [
+        os.path.join(base_dir, 'secrets', '.env'),  # Original location
+        os.path.join(base_dir, '.env'),             # Root directory (EasyPanel default)
+        os.path.join(os.getcwd(), '.env'),          # Current working directory
+        os.path.join(os.getcwd(), 'secrets', '.env') # CWD secrets directory
+    ]
 
     # Debug information
-    print(f"[DEBUG] .env path: {dotenv_path}")
-    print(f"[DEBUG] .env exists: {os.path.exists(dotenv_path)}")
-    print(f"[DEBUG] .env readable: {os.access(dotenv_path, os.R_OK) if os.path.exists(dotenv_path) else False}")
+    print(f"[DEBUG] Looking for .env in multiple locations...")
+    for i, path in enumerate(dotenv_paths):
+        print(f"[DEBUG] {i+1}. {path} - exists: {os.path.exists(path)}")
 
-    if os.path.exists(dotenv_path):
-        load_dotenv(dotenv_path=dotenv_path, override=True)
-        print(f"[DEBUG] .env loaded successfully from {dotenv_path}")
-    else:
-        print(f"[DEBUG] Could not read .env: [Errno 2] No such file or directory: '{dotenv_path}'")
+    # Try to load from the first existing .env file
+    loaded = False
+    for dotenv_path in dotenv_paths:
+        if os.path.exists(dotenv_path):
+            print(f"[DEBUG] Loading .env from: {dotenv_path}")
+            load_dotenv(dotenv_path=dotenv_path, override=True)
+            print(f"[DEBUG] .env loaded successfully from {dotenv_path}")
+            loaded = True
+            break
+    
+    if not loaded:
+        print(f"[DEBUG] No .env file found in any of the expected locations")
         print(f"[DEBUG] CWD: {os.getcwd()}")
         print(f"[DEBUG] .env loaded at entrypoint: {os.getenv('DOTENV_LOADED')}")
-
-    # Also try loading from current working directory as fallback
-    cwd_dotenv = os.path.join(os.getcwd(), 'secrets', '.env')
-    if os.path.exists(cwd_dotenv) and not os.path.exists(dotenv_path):
-        print(f"[DEBUG] Loading .env from CWD: {cwd_dotenv}")
-        load_dotenv(dotenv_path=cwd_dotenv, override=True)
     # Handle Google Cloud Storage credentials
     gcs_creds_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     print(f"[DEBUG] GOOGLE_APPLICATION_CREDENTIALS: {gcs_creds_path}")
