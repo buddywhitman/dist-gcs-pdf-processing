@@ -401,8 +401,7 @@ def process_file_with_resume(file_name, storage_backend):
                     local_pdf = (
                         os.path.join(temp_dir, os.path.basename(file_name)))
                     if not storage_backend.download_file(file_name, local_pdf, trace_id=trace_id):
-                        logger.error(f"[{trace_id}] Failed to download {file_name}")
-                        return False
+                        raise Exception(f"Failed to download {file_name}")
 
                     # Validate PDF
                     if not is_valid_pdf(local_pdf):
@@ -499,8 +498,7 @@ def process_file_with_resume(file_name, storage_backend):
                                 save_file_progress(file_name, progress)
 
                 if not results:
-                    logger.error(f"[{trace_id}] No pages were successfully processed")
-                    return False
+                    raise Exception("No pages were successfully processed")
 
                 logger.info(f"[{trace_id}] Successfully processed {len(results)} pages (total: {len(page_files)})")
 
