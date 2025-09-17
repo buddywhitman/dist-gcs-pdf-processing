@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dist-gcs-pdf-processing"
-version = "2.0.6"
+version = "2.0.7"
 description = "Unified PDF processing pipeline with resume capability, multi-storage backends (GCS/Drive), distributed locking, and production-ready deployment."
 authors = [
     { name = "Pulkit Kumar", email = "your@email.com" }
@@ -24,13 +24,16 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "google-cloud-storage",
+    "google-api-python-client",
+    "google-auth",
+    "google-auth-oauthlib",
     "requests",
     "python-dotenv",
     "pypdf",
     "markdown2",
     "weasyprint",
     "python-docx",
-    "redis",
+    "redis>=4.0.0",
     "prometheus_client",
 ]
 
