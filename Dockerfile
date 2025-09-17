@@ -8,15 +8,15 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install WeasyPrint dependencies (same as CI workflow)
+# Install WeasyPrint dependencies (updated for Debian Trixie)
 RUN apt-get update && apt-get install -y \
     libpangocairo-1.0-0 \
     libpangoft2-1.0-0 \
     libcairo2 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-xlib-2.0-0 \
     libffi-dev \
     libxml2 \
-    libgdk-pixbuf2.0-dev \
+    libgdk-pixbuf-xlib-2.0-dev \
     libgtk-3-0 \
     && rm -rf /var/lib/apt/lists/*
 
