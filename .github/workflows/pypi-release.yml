@@ -41,6 +41,14 @@ jobs:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
 
+      - name: Publish to GitHub Packages
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+        run: |
+          python -m pip install --upgrade pip
+          pip install twine
+          # Publish to GitHub Packages
+          twine upload --repository-url https://pypi.pkg.github.com/${{ github.repository_owner }}/ dist/* --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create GitHub Release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
         uses: softprops/action-gh-release@v1
@@ -60,12 +68,20 @@ jobs:
             - Windows compatibility fixes
             
             ## 📦 Installation
+            
+            **From PyPI (recommended):**
             ```bash
             pip install dist-gcs-pdf-processing==${{ github.ref_name }}
             ```
             
+            **From GitHub Packages:**
+            ```bash
+            pip install dist-gcs-pdf-processing==${{ github.ref_name }} --index-url https://pypi.pkg.github.com/${{ github.repository_owner }}/
+            ```
+            
             ## 🔗 Links
             - PyPI: https://pypi.org/project/dist-gcs-pdf-processing/${{ github.ref_name }}/
+            - GitHub Packages: https://github.com/${{ github.repository_owner }}/dist-gcs-pdf-processing/packages
             - Documentation: See README.md
           files: |
             dist/*.whl
