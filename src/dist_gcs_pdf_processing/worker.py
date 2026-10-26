@@ -111,7 +111,7 @@ def log_supabase_error(error_message, created_time=None):
     url = "{SUPABASE_URL}/rest/v1/{SUPABASE_ERROR_LOG_TABLE}"
     headers = {
         "apikey": SUPABASE_API_KEY,
-        "Authorization": "Bearer {SUPABASE_API_KEY}",
+        "Authorization": f"Bearer {SUPABASE_API_KEY}",
         "Content-Type": "application/json",
         "Prefer": "return=minimal"
     }
@@ -128,7 +128,7 @@ def log_supabase_error(error_message, created_time=None):
         response = requests.post(url, headers=headers, json=data, timeout=10)
         response.raise_for_status()
     except Exception as e:
-        log_dead_letter("supabase_error", "Failed to log to Supabase: {e}", extra={"original_error": error_message})
+        log_dead_letter("supabase_error", f"Failed to log to Supabase: {e}", extra={"original_error": error_message})
 
 def split_pdf_to_pages(pdf_path: str, pdf_dir: str) -> List[str]:
     reader = PdfReader(pdf_path)
@@ -144,7 +144,7 @@ def split_pdf_to_pages(pdf_path: str, pdf_dir: str) -> List[str]:
 
 def markdown_to_pdf(markdown: str, pdf_path: str, html_dir: str, page_num: int):
     html = markdown2.markdown(markdown)
-    html_path = os.path.join(html_dir, "page_{page_num:04d}.html")
+    html_path = os.path.join(html_dir, f"page_{page_num:04d}.html")
     with open(html_path, "w", encoding="utf-8") as html_file:
         html_file.write(html)
     HTML(string=html).write_pdf(pdf_path)
@@ -208,7 +208,7 @@ def ocr_page_with_retries(pdf_path, page_number, trace_id):
         except Exception as e:
             print(f"[ERROR][{trace_id}] OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}\n")
             logger.error(f"[{trace_id}] Error processing page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}")
-            log_json("ocr_error", "OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}", trace_id=trace_id)
+            log_json("ocr_error", f"OCR failed for page {page_number} (attempt {attempt}/{MAX_RETRIES}): {e}", trace_id=trace_id)
             if attempt == MAX_RETRIES:
                 return None
             time.sleep(2)  # brief backoff
@@ -217,7 +217,7 @@ def process_file(file_name):
     trace_id = str(uuid.uuid4())
     print(f"[START][{trace_id}] Processing file: {file_name}\n")
     logger.info(f"[{trace_id}] Processing file: {file_name}")
-    log_json("start_processing", "Processing file: {file_name}", trace_id=trace_id, extra={"trace_id": trace_id})
+    log_json("start_processing", f"Processing file: {file_name}", trace_id=trace_id, extra={"trace_id": trace_id})
     retries = 0
     while retries < MAX_RETRIES:
         try:
@@ -256,7 +256,7 @@ def process_file(file_name):
                         else:
                             print(f"[ERROR][{trace_id}] OCR permanently failed for page {page_number} after {MAX_RETRIES} attempts.\n")
                             logger.error(f"[{trace_id}] OCR permanently failed for page {page_number} after {MAX_RETRIES} attempts.")
-                            log_json("ocr_permanent_error", "OCR permanently failed for page {page_number}", trace_id=trace_id)
+                            log_json("ocr_permanent_error", f"OCR permanently failed for page {page_number}", trace_id=trace_id)
                 results.sort(key=lambda x: x.page_number)
                 markdown_pages = [r.markdown for r in results]
                 single_pdf_paths = []
@@ -269,7 +269,7 @@ def process_file(file_name):
                     except Exception as e:
                         print(f"[ERROR][{trace_id}] Markdown to PDF failed for page {i+1}: {e}\n")
                         logger.error(f"[{trace_id}] Error converting markdown to PDF for page {i+1}: {e}")
-                        log_json("markdown_to_pdf_error", "Markdown to PDF failed for page {i+1}: {e}", trace_id=trace_id)
+                        log_json("markdown_to_pdf_error", f"Markdown to PDF failed for page {i+1}: {e}", trace_id=trace_id)
                 merged_pdf_path = os.path.join(temp_dir, "merged.pdf")
                 writer = PdfWriter()
                 for pdf in single_pdf_paths:
@@ -279,7 +279,7 @@ def process_file(file_name):
                     except Exception as e:
                         print(f"[ERROR][{trace_id}] Merging page PDF failed for {pdf}: {e}\n")
                         logger.error(f"[{trace_id}] Error merging page PDF {pdf}: {e}")
-                        log_json("merge_error", "Merging page PDF failed for {pdf}: {e}", trace_id=trace_id)
+                        log_json("merge_error", f"Merging page PDF failed for {pdf}: {e}", trace_id=trace_id)
                 with open(merged_pdf_path, "wb") as f:
                     writer.write(f)
                 print(f"[INFO][{trace_id}] Checking merged PDF at {merged_pdf_path}\n")
@@ -291,7 +291,7 @@ def process_file(file_name):
                 if original_page_count != output_page_count:
                     print(f"[ERROR][{trace_id}] Page count mismatch! Retrying ({retries+1}/{MAX_RETRIES})...\n")
                     logger.error(f"[{trace_id}] Page count mismatch for {file_name}. Retrying.")
-                    log_json("page_count_mismatch", "Page count mismatch for {file_name}. Retrying.", trace_id=trace_id)
+                    log_json("page_count_mismatch", f"Page count mismatch for {file_name}. Retrying.", trace_id=trace_id)
                     retries += 1
                     continue
                 print(f"[INFO][{trace_id}] Uploading merged PDF to GCS as {os.path.basename(file_name)}\n")
@@ -300,23 +300,23 @@ def process_file(file_name):
                 except Exception as e:
                     print(f"[ERROR][{trace_id}] Upload to GCS failed: {e}\n")
                     logger.error(f"[{trace_id}] Upload to GCS failed for {file_name}: {e}")
-                    log_json("gcs_upload_error", "Upload to GCS failed for {file_name}: {e}", trace_id=trace_id)
+                    log_json("gcs_upload_error", f"Upload to GCS failed for {file_name}: {e}", trace_id=trace_id)
                     retries += 1
                     continue
                 print(f"[SUCCESS][{trace_id}] Finished processing {file_name}\n")
                 logger.info(f"[{trace_id}] Finished processing {file_name}")
-                log_json("success", "Finished processing {file_name}", trace_id=trace_id)
+                log_json("success", f"Finished processing {file_name}", trace_id=trace_id)
                 return
         except Exception as e:
             print(f"[FATAL ERROR][{trace_id}] Processing failed for {file_name}: {e}\n")
             logger.error(f"[{trace_id}] Fatal error processing {file_name}: {e}")
-            log_json("fatal_error", "Fatal error processing {file_name}: {e}", trace_id=trace_id)
+            log_json("fatal_error", f"Fatal error processing {file_name}: {e}", trace_id=trace_id)
             retries += 1
     print(f"[ERROR][{trace_id}] Max retries reached for {file_name}. Skipping file.\n")
     logger.error(f"[{trace_id}] Max retries reached for {file_name}. Skipping file.")
-    log_json("persistent_error", "Max retries reached for {file_name}. Skipping file.", extra={"file_name": file_name}, trace_id=trace_id)
+    log_json("persistent_error", f"Max retries reached for {file_name}. Skipping file.", extra={"file_name": file_name}, trace_id=trace_id)
     log_dead_letter(file_name, "Max retries reached. Skipping file.", trace_id=trace_id)
-    log_supabase_error("Max retries reached for {file_name}. Skipping file.", created_time=datetime.utcnow().isoformat())
+    log_supabase_error(f"Max retries reached for {file_name}. Skipping file.", created_time=datetime.utcnow().isoformat())
 
 # Register cleanup for graceful shutdown
 _temp_dirs = []

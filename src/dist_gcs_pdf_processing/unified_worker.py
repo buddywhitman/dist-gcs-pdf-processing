@@ -182,58 +182,61 @@ def log_supabase_error(error_message, created_time=None):
         response = requests.post(url, headers=headers, json=data, timeout=10)
         response.raise_for_status()
     except Exception as e:
-        log_dead_letter("supabase_error", "Failed to log to Supabase: {e}", extra={"original_error": error_message})
+        log_dead_letter("supabase_error", f"Failed to log to Supabase: {e}", extra={"original_error": error_message})
 
 @contextmanager
 def distributed_lock(lock_key: str, timeout: int = 300):
-    """Distributed lock using Redis or file-based fallback."""
+    """Distributed lock using Redis or file-based fallback.
+
+    Redis is authoritative when reachable: if another worker holds the key,
+    the lock is not acquired (no fallback). The file lock is used only when
+    Redis is unavailable, and its handle stays open (locked) until release.
+    """
     lock_acquired = False
     lock_value = f"{WORKER_INSTANCE_ID}_{int(time.time())}"
     use_redis = False
+    lock_fh = None
 
-    # Check if redis_client is available and connected
-    try:
-        if redis_client is not None:
-            # Redis-based distributed lock
-            try:
-                # Try to acquire lock with expiration
-                if redis_client.set(lock_key, lock_value, nx=True, ex=timeout):
-                    lock_acquired = True
-                    use_redis = True
-                    logger.info(f"Acquired Redis lock: {lock_key}")
-                else:
-                    logger.info(f"Could not acquire Redis lock: {lock_key}")
-            except Exception as e:
-                logger.warning(f"Redis lock failed: {e}. Falling back to file lock.")
-                use_redis = False
-    except NameError:
-        # redis_client is not defined, use file-based locking
-        use_redis = False
+    if redis_client is not None:
+        try:
+            use_redis = True
+            if redis_client.set(lock_key, lock_value, nx=True, ex=timeout):
+                lock_acquired = True
+                logger.info(f"Acquired Redis lock: {lock_key}")
+            else:
+                logger.info(f"Could not acquire Redis lock: {lock_key}")
+        except Exception as e:
+            logger.warning(f"Redis lock failed: {e}. Falling back to file lock.")
+            use_redis = False
 
-    if not lock_acquired and not use_redis:
-        # File-based lock fallback
+    if not use_redis:
+        # File-based lock fallback (single host only)
         lock_file = os.path.join(
-            LOGS_DIR, "lock_{hashlib.md5(lock_key.encode()).hexdigest()}.lock"
+            LOGS_DIR, f"lock_{hashlib.md5(lock_key.encode()).hexdigest()}.lock"
         )
         try:
-            with open(lock_file, 'w') as f:
-                if HAS_FCNTL:
-                    # Unix/Linux file locking
-                    fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                else:
-                    # Windows file locking
-                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
-                f.write(lock_value)
-                lock_acquired = True
-                logger.info(f"Acquired file lock: {lock_key}")
+            lock_fh = open(lock_file, 'a+')
+            if HAS_FCNTL:
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                msvcrt.locking(lock_fh.fileno(), msvcrt.LK_NBLCK, 1)
+            lock_fh.seek(0)
+            lock_fh.truncate()
+            lock_fh.write(lock_value)
+            lock_fh.flush()
+            lock_acquired = True
+            logger.info(f"Acquired file lock: {lock_key}")
         except (OSError, IOError):
             logger.info(f"Could not acquire file lock: {lock_key}")
+            if lock_fh is not None:
+                lock_fh.close()
+                lock_fh = None
 
     try:
         yield lock_acquired
     finally:
         if lock_acquired:
-            if use_redis and redis_client:
+            if use_redis:
                 try:
                     # Only release if we still own the lock
                     if redis_client.get(lock_key) == lock_value:
@@ -241,23 +244,18 @@ def distributed_lock(lock_key: str, timeout: int = 300):
                         logger.info(f"Released Redis lock: {lock_key}")
                 except Exception as e:
                     logger.warning(f"Failed to release Redis lock: {e}")
-            else:
+            elif lock_fh is not None:
                 try:
-                    lock_file = os.path.join(
-                        LOGS_DIR, f"lock_{hashlib.md5(lock_key.encode()).hexdigest()}.lock"
-                    )
-                    if os.path.exists(lock_file):
-                        # Release Windows lock if needed
-                        if not HAS_FCNTL:
-                            try:
-                                with open(lock_file, 'r+') as f:
-                                    msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
-                            except Exception:
-                                pass  # Ignore unlock errors
-                        os.remove(lock_file)
-                        logger.info(f"Released file lock: {lock_key}")
+                    if HAS_FCNTL:
+                        fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+                    else:
+                        lock_fh.seek(0)
+                        msvcrt.locking(lock_fh.fileno(), msvcrt.LK_UNLCK, 1)
+                    logger.info(f"Released file lock: {lock_key}")
                 except Exception as e:
                     logger.warning(f"Failed to release file lock: {e}")
+                finally:
+                    lock_fh.close()
 
 def is_valid_pdf(file_path):
     """Validate PDF file integrity."""
@@ -282,7 +280,7 @@ def split_pdf_to_pages(pdf_path: str, pdf_dir: str) -> List[str]:
     for i, page in enumerate(reader.pages):
         writer = PdfWriter()
         writer.add_page(page)
-        page_path = os.path.join(pdf_dir, "page_{i+1:04d}.pd")
+        page_path = os.path.join(pdf_dir, f"page_{i+1:04d}.pdf")
         with open(page_path, "wb") as f:
             writer.write(f)
         page_files.append(page_path)
@@ -371,10 +369,10 @@ def ocr_page_with_retries(pdf_path, page_number, trace_id):
 def process_file_with_resume(file_name, storage_backend):
     """Process file with resume capability and distributed locking."""
     trace_id = str(uuid.uuid4())
-    lock_key = "pdf_processing:{file_name}"
+    lock_key = f"pdf_processing:{file_name}"
 
     logger.info(f"[{trace_id}] Processing file: {file_name}")
-    log_json("start_processing", "Processing file: {file_name}", trace_id=trace_id)
+    log_json("start_processing", f"Processing file: {file_name}", trace_id=trace_id)
 
     # Try to acquire distributed lock
     with distributed_lock(lock_key, timeout=3600) as lock_acquired:
@@ -490,7 +488,7 @@ def process_file_with_resume(file_name, storage_backend):
                                 logger.info(f"[{trace_id}] OCR for page {page_number} complete")
                             else:
                                 logger.error(f"[{trace_id}] OCR permanently failed for page {page_number} after {MAX_RETRIES} attempts")
-                                log_json("ocr_permanent_error", "OCR permanently failed for page {page_number}", trace_id=trace_id)
+                                log_json("ocr_permanent_error", f"OCR permanently failed for page {page_number}", trace_id=trace_id)
 
                                 # Update progress
                                 if page_number not in progress["failed_pages"]:
@@ -556,7 +554,7 @@ def process_file_with_resume(file_name, storage_backend):
 
                 if upload_result:
                     logger.info(f"[{trace_id}] Finished processing {file_name}")
-                    log_json("success", "Finished processing {file_name}", trace_id=trace_id)
+                    log_json("success", f"Finished processing {file_name}", trace_id=trace_id)
 
                     # Clean up progress and cache files
                     cleanup_file_progress(file_name)
