@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="dist-gcs-pdf-processing",
-    version="1.0.0",
+    version="2.1.0",
     author="Pulkit Kumar",
     author_email="pulkit.talks@.com",
     description="Distributed, scalable GCS PDF processing pipeline with Gemini OCR, Redis, and API endpoints.",
